@@ -101,7 +101,7 @@ RULES: list[tuple[str, str]] = [
     ("location", r"location|where (are you|do you) (based|live|located)|current(ly)? (located|residing)"),
     ("edu_start_month", r"^start date month"),
     ("edu_start_year", r"^start date year"),
-    ("gpa", r"\bgpa\b|grade point"),
+    ("gpa", r"^(?!.*(graduate\)|doctor|master|ph\.?d|mba)).*(\bgpa\b|grade point)"),
     ("grad_month", r"end date month|graduation month|month of graduation|end month"),
     ("grad_year", r"end date year|graduation year|year of graduation|end year|class year"),
     ("graduation", r"(?<!under)graduat|completion date|expected (grad|completion)|class of"),
