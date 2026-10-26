@@ -13,7 +13,10 @@ import functools
 import json
 import logging
 import os
+import re
 import sys
+import threading
+import time
 from pathlib import Path
 
 try:  # mcp 2.x
@@ -208,29 +211,73 @@ def mark_job(job_id: str, status: str) -> dict:
         db.close()
 
 
-@_tool
-def apply_to_jobs(job_ids: list[str], mode: str = "dry_run", confirm_submit: bool = False) -> list[dict]:
-    """Open each application form in a real browser window and fill it (resume, cover letter, saved answers).
-    mode 'dry_run' (default) fills but never submits and saves a screenshot. mode 'auto' SUBMITS - it only runs
-    if confirm_submit=True, so ask the user first. CAPTCHAs, logins and unknown required questions stop that job
-    as 'needs_review'. Daily/per-company caps from config.yaml apply. Slow: ~1 minute per job."""
+_RUN: dict = {}  # the one background application run (one browser profile = one run at a time)
+_RUN_LOCK = threading.Lock()
+
+
+def _run_applications(job_ids: list[str], mode: str):
+    with contextlib.redirect_stdout(sys.stderr):  # stdout is the MCP channel
+        _run_applications_inner(job_ids, mode)
+
+
+def _run_applications_inner(job_ids: list[str], mode: str):
     from applybot.pipeline import apply_jobs
-    if mode not in ("dry_run", "auto"):
-        return [{"error": "mode must be 'dry_run' or 'auto' here (use the ApplyBot app for interactive review)"}]
-    if mode == "auto" and not confirm_submit:
-        return [{"error": "auto mode submits real applications - ask the user, then call again with confirm_submit=true"}]
     cfg, llm, db = _ctx()
     try:
         jobs = [j for j in (db.get_job(i) for i in job_ids) if j]
-        if not jobs:
-            return [{"error": "no matching jobs"}]
+        _RUN["total"] = len(jobs)
         profile = _profile(cfg, llm)
-        res = apply_jobs(cfg, db, profile, llm, jobs, mode, log=lambda *_: None)
-        return [{"id": r["job"]["id"], "company": r["job"]["company"], "title": r["job"]["title"],
-                 "status": r["result"].status, "notes": r["result"].notes, "screenshot": r["result"].screenshot}
-                for r in res] or [{"note": "nothing was applied to (already submitted, or a cap was reached)"}]
+
+        def log(msg, *_):
+            text = re.sub(r"\[/?[a-z ]+\]", "", str(msg)).strip()
+            if text:
+                _RUN["log"].append(text)
+                del _RUN["log"][:-40]
+
+        res = apply_jobs(cfg, db, profile, llm, jobs, mode, log=log)
+        _RUN["results"] = [{"id": r["job"]["id"], "company": r["job"]["company"], "title": r["job"]["title"],
+                            "status": r["result"].status, "notes": r["result"].notes,
+                            "screenshot": r["result"].screenshot} for r in res]
+    except Exception as e:  # report, don't crash the server
+        _RUN["error"] = f"{type(e).__name__}: {e}"
     finally:
         db.close()
+        _RUN["finished"] = time.strftime("%H:%M:%S")
+        _RUN["running"] = False
+
+
+@_tool
+def apply_to_jobs(job_ids: list[str], mode: str = "dry_run", confirm_submit: bool = False) -> dict:
+    """START filling application forms in a real browser window on the user's computer (resume, cover letter,
+    saved answers). Returns immediately - the run continues in the background (~1-2 minutes per job); check it with
+    apply_progress. mode 'dry_run' (default) fills but never submits and saves a screenshot. mode 'auto' SUBMITS -
+    it only runs if confirm_submit=True, so ask the user first. CAPTCHAs, sign-in-only sites (Workday, amazon.jobs,
+    Microsoft careers), unknown required questions and any legal/EEO answer that could not be verified stop that job
+    as 'needs_review'. Caps from config.yaml apply."""
+    if mode not in ("dry_run", "auto"):
+        return {"error": "mode must be 'dry_run' or 'auto' here (use the ApplyBot app for interactive review)"}
+    if mode == "auto" and not confirm_submit:
+        return {"error": "auto mode submits real applications - ask the user, then call again with confirm_submit=true"}
+    with _RUN_LOCK:
+        if _RUN.get("running"):
+            return {"error": "an application run is already in progress - check apply_progress",
+                    "progress": apply_progress()}
+        _RUN.clear()
+        _RUN.update(running=True, mode=mode, started=time.strftime("%H:%M:%S"), job_ids=list(job_ids), log=[],
+                    results=[], total=len(job_ids))
+        threading.Thread(target=_run_applications, args=(list(job_ids), mode), daemon=True).start()
+    return {"started": True, "mode": mode, "jobs": len(job_ids),
+            "note": "running in the background - call apply_progress in a minute or two"}
+
+
+@_tool
+def apply_progress() -> dict:
+    """Status of the current/last apply_to_jobs run: running or finished, recent log lines, and per-job results
+    (applied / dry_run / needs_review / failed / skipped, with notes and screenshot paths)."""
+    if not _RUN:
+        return {"running": False, "note": "no application run has been started since ApplyBot's MCP server started"}
+    return {k: _RUN.get(k) for k in ("running", "mode", "started", "finished", "total", "results", "error")
+            if _RUN.get(k) not in (None, [])} | {"recent_log": _RUN.get("log", [])[-12:]}
 
 
 def main():
