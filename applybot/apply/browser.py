@@ -64,7 +64,22 @@ def direct_form_url(url: str) -> str:
     m = _ASHBY_JOB.match(url)
     if m:
         return m.group(1) + "/application"
+    # company careers pages that embed Greenhouse (e.g. stokespace.com/careers?gh_jid=123)
+    from applybot.sources.ats import ats_key
+    key = ats_key(url)
+    if key and key[0] == "greenhouse" and key[1]:
+        return f"https://job-boards.greenhouse.io/embed/job_app?for={key[1]}&token={key[2]}"
     return url
+
+
+# Sites where every application needs a candidate account/sign-in, which the bot never creates.
+ACCOUNT_SITES = ("myworkdayjobs.com", "myworkdaysite.com", "amazon.jobs", "careers.microsoft.com", "metacareers.com",
+                 "successfactors", "avature.net", "icims.com", "taleo.net", "oraclecloud.com", "brassring.com")
+
+
+def account_site(url: str) -> str:
+    low = (url or "").lower()
+    return next((s for s in ACCOUNT_SITES if s in low), "")
 
 
 Choices = list[tuple[str, str]]  # (value returned, label shown)
@@ -341,6 +356,10 @@ class Applicant:
     # ------------------------------------------------------------------ main flow
     def apply(self, url: str, job: dict, files: dict[str, Path], mode: str, shot_dir: Path) -> ApplyResult:
         shot_dir.mkdir(parents=True, exist_ok=True)
+        site = account_site(url)
+        if site and (mode != "review" or not self.interactive):
+            return ApplyResult(status="needs_review", final_url=url,
+                               notes=f"{site} needs you to sign in - apply yourself with the tailored resume in {shot_dir}")
         page = self._ctx.new_page()
         result = ApplyResult(status="failed")
         all_answers: dict[str, str] = {}

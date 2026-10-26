@@ -91,7 +91,7 @@ def apply_jobs(cfg: Config, db: DB, profile: dict, llm: LLM, jobs: list[dict], m
 
     if mode == "review":
         cfg["apply"]["headless"] = False  # the human has to see the form to approve it
-    max_day = int(cfg["apply"].get("max_per_day", 25))
+    max_day = int(cfg["apply"].get("max_per_day", 25) or 0)  # 0 = no daily limit
     max_company = int(cfg["apply"].get("max_per_company", 0) or 0)  # 0 = no per-company cap
     company_counts = db.company_app_counts() if max_company else {}
     delay = cfg["apply"].get("delay_seconds") or [0, 0]
@@ -100,7 +100,7 @@ def apply_jobs(cfg: Config, db: DB, profile: dict, llm: LLM, jobs: list[dict], m
     with Applicant(cfg, profile, AnswerBank(cfg.path("profile", "answers_path"), profile), llm, log=log,
                    ask_human=interactive_human, pause=pause) as applicant:
         for i, job in enumerate(jobs):
-            if mode != "dry_run" and db.applied_today() >= max_day:
+            if mode != "dry_run" and max_day and db.applied_today() >= max_day:
                 log(f"[yellow]Daily cap of {max_day} applications reached - stopping.[/yellow]")
                 break
             company_key = (job.get("company") or "").lower()

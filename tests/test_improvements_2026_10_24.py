@@ -74,3 +74,11 @@ def test_section_order_experience_first_for_non_students():
     assert section_order(r)[0][0] == "experience"
     r["education"] = [{"dates": "2022 - Expected 2027"}]
     assert section_order(r)[0][0] == "education"
+
+
+def test_direct_form_url_handles_embedded_greenhouse():
+    from applybot.apply.browser import account_site, direct_form_url
+    url = direct_form_url("https://stokespace.com/careers/current-openings?gh_jid=6176786004")
+    assert "greenhouse.io/embed/job_app" in url and "token=6176786004" in url
+    assert account_site("https://blueorigin.wd5.myworkdayjobs.com/x") == "myworkdayjobs.com"
+    assert account_site("https://job-boards.greenhouse.io/axon/jobs/1") == ""
