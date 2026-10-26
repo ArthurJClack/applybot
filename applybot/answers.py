@@ -106,7 +106,7 @@ RULES: list[tuple[str, str]] = [
     ("graduation", r"graduat|completion date|expected (grad|completion)|class of"),
     ("school", r"school|university|college|institution"),
     ("degree", r"degree( type| level)?$|level of education|highest (degree|education)"),
-    ("major", r"major|field of study|discipline|area of study|concentration"),
+    ("major", r"\bmajor\b|field of study|discipline|area of study|concentration"),
     ("gpa", r"\bgpa\b|grade point"),
     ("basics.current_company", r"current (company|employer)|most recent (company|employer)|candidate'?s company"),
     ("basics.current_title", r"current (title|role|position)|most recent (title|role)|current or previous (job )?title|previous job title"),

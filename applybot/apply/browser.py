@@ -291,7 +291,11 @@ class Applicant:
                 try:
                     radio.check(force=True)
                 except Exception:
-                    radio.evaluate("e => (e.closest('label') || e).click()")
+                    pass
+                if not radio.evaluate("e => e.checked"):  # label outside the input (Lever EEO), hidden inputs, ...
+                    radio.evaluate("""e => { const l = (e.labels && e.labels[0]) || e.closest('label');
+                        (l || e).click();
+                        if (!e.checked) { e.checked = true; e.dispatchEvent(new Event('change', {bubbles: true})); } }""")
                 return bool(radio.evaluate("e => e.checked"))
             if kind == "checkbox_group":
                 ok = False
