@@ -73,6 +73,23 @@ def direct_form_url(url: str) -> str:
     return url
 
 
+def greenhouse_alternates(url: str, company: str = "") -> list[str]:
+    """Other board tokens to try when a careers-site gh_jid link's guessed board has no form
+    (pinterestcareers.com -> 'pinterest', West Monroe -> 'westmonroepartners', ...)."""
+    from applybot.sources.ats import ats_key
+    key = ats_key(url)
+    if not key or key[0] != "greenhouse" or not key[2]:
+        return []
+    board, jid = key[1] or "", key[2]
+    co = re.sub(r"[^a-z0-9]", "", (company or "").lower())
+    cands = [re.sub(r"(careers|jobs|hq|inc)$", "", board), co, co + "inc", co + "partners", co + "careers", co + "jobs"]
+    out = []
+    for c in cands:
+        if c and c != board and c not in out:
+            out.append(c)
+    return [f"https://job-boards.greenhouse.io/embed/job_app?for={c}&token={jid}" for c in out]
+
+
 # Sites where every application needs a candidate account/sign-in, which the bot never creates.
 ACCOUNT_SITES = ("myworkdayjobs.com", "myworkdaysite.com", "amazon.jobs", "careers.microsoft.com", "metacareers.com",
                  "successfactors", "avature.net", "icims.com", "taleo.net", "oraclecloud.com", "brassring.com")
@@ -458,6 +475,13 @@ class Applicant:
             page.goto(direct_form_url(url), wait_until="domcontentloaded", timeout=60000)
             self._settle(page)
             page = self._open_form(page)
+            if not [i for _, i in self._scan(page) if i["kind"] != "file"]:
+                for alt in greenhouse_alternates(url, job.get("company", "")):
+                    page.goto(alt, wait_until="domcontentloaded", timeout=60000)
+                    self._settle(page, 800)
+                    if len([i for _, i in self._scan(page) if i["kind"] != "file"]) >= 3:
+                        self.log(f"  found the form at {alt}")
+                        break
 
             max_steps = int(self.acfg.get("max_steps", 8))
             for step in range(max_steps):
