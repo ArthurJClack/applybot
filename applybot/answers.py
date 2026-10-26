@@ -84,7 +84,7 @@ RULES: list[tuple[str, str]] = [
     ("consent", r"\b(i (agree|acknowledge|consent|certify|confirm|understand|attest))|i am certifying|i hereby certify|privacy (policy|notice)|terms (and|&) conditions|consent to"),
     ("first_name", r"^(legal )?first name|^given name|first name\b"),
     ("last_name", r"^(legal )?last name|surname|family name|last name\b"),
-    ("basics.preferred_name", r"preferred (first )?name|nickname"),
+    ("basics.preferred_name", r"preferred (first )?name|nickname|chosen name"),
     ("full_name", r"^(full |legal )?name$|^your name|full name|legal name|signature"),
     ("email", r"e-?mail"),
     ("phone", r"\b(phone|mobile|cell)\b"),
