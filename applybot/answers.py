@@ -99,6 +99,8 @@ RULES: list[tuple[str, str]] = [
     ("logistics.willing_to_relocate", r"relocat"),
     ("logistics.in_person_ok", r"in[- ]office requirement|willing (and able )?to work in the location|able to work (in|at|from) (the |our )?(office|location)"),
     ("location", r"location|where (are you|do you) (based|live|located)|current(ly)? (located|residing)"),
+    ("edu_start_month", r"^start date month"),
+    ("edu_start_year", r"^start date year"),
     ("grad_month", r"end date month|graduation month|month of graduation|end month"),
     ("grad_year", r"end date year|graduation year|year of graduation|end year|class year"),
     ("graduation", r"graduat|completion date|expected (grad|completion)|class of"),
@@ -126,14 +128,19 @@ OPEN_ENDED_RE = re.compile(
 LONG_OK = {"cover_letter", "resume_file", "transcript_file", "consent"}
 
 
+_NOT_OPEN = re.compile(r"how did you (hear|find|learn|come across)", re.I)
+
+
 def is_open_ended(question: str, kind: str = "") -> bool:
     q = (question or "").strip()
+    if _NOT_OPEN.search(q):
+        return False
     return bool(OPEN_ENDED_RE.search(q)) or (kind == "textarea" and len(q.split()) > 6)
 
 
 def classify(question: str, kind: str = "") -> str | None:
     q = (question or "").lower().replace("_", " ")
-    q = re.sub(r"\s*(\*|\(required\))\s*$", "", q.strip())  # "Degree*" -> "degree"
+    q = re.sub(r"\s*(\*|\u2731|\(required\))\s*$", "", q.strip())  # "Degree*" -> "degree"
     open_ended = is_open_ended(question, kind)
     for cat, pattern in RULES:
         if open_ended and cat not in LONG_OK:
@@ -190,6 +197,14 @@ def choose_option(value: str, options: list[str]) -> str | None:
         for o in opts:
             if _polarity(o) == pol:
                 return o
+    # "Online job board" -> "Job Board (e.g. Indeed)": >= 2 shared words, only for plain (non yes/no, non-decline)
+    # answers so a legal answer can never be matched loosely
+    words = {w for w in v.split() if len(w) > 2}
+    if len(words) >= 2 and not pol and not any(w in v for w in _DECLINE):
+        scored = sorted(((len(words & {w for w in qnorm(o).split() if len(w) > 2}), o) for o in opts
+                         if _polarity(o) is None), key=lambda x: -x[0])
+        if scored and scored[0][0] >= 2 and (len(scored) == 1 or scored[1][0] < scored[0][0]):
+            return scored[0][1]
     return None
 
 
@@ -269,7 +284,9 @@ class AnswerBank:
                      degree, re.I)
         if m:
             major = m.group(2)
-        grad = ""
+        grad = start = ""
+        if edu.get("dates") and re.search(r"\s[-\u2013\u2014]\s|\sto\s", edu["dates"]):
+            start = re.split(r"\s*[-\u2013\u2014]\s*|\s+to\s+", edu["dates"])[0].strip()
         if edu.get("dates"):
             grad = re.split(r"\s*[-\u2013\u2014]\s*|\s+to\s+", edu["dates"])[-1].replace("Expected", "").strip()
         values = {
@@ -280,6 +297,8 @@ class AnswerBank:
             "basics.state": loc_parts[1] if len(loc_parts) > 1 else "",
             "school": edu.get("school", ""), "degree": degree, "major": major, "gpa": edu.get("gpa", ""),
             "graduation": grad,
+            "edu_start_month": (re.search(r"[A-Za-z]{3,}", start) or [""])[0] if start else "",
+            "edu_start_year": (re.search(r"(19|20)\d{2}", start) or [""])[0] if start else "",
             "grad_month": (re.search(r"[A-Za-z]{3,}", grad) or [""])[0] if grad else "",
             "grad_year": (re.search(r"(19|20)\d{2}", grad) or [""])[0] if grad else "",
             "degree_level": _degree_level(degree),

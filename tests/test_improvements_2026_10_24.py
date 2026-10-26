@@ -98,3 +98,12 @@ def test_form_question_matching_fixes():
     assert _graduation_yes_no(q, "June 2027") == "Yes"
     assert _graduation_yes_no(q, "June 2030") == "No"
     assert _graduation_yes_no("Are you graduating?", "June 2027") is None
+
+
+def test_choose_option_word_overlap_is_safe():
+    from applybot.answers import choose_option, is_open_ended
+    assert choose_option("Online job board", ["LinkedIn", "Job Board (e.g. Indeed)", "Referral"]) == "Job Board (e.g. Indeed)"
+    vets = ["I am a protected veteran", "I am not a protected veteran", "I don't wish to answer"]
+    assert choose_option("I am not a protected veteran", vets) == "I am not a protected veteran"
+    assert choose_option("Straight", ["Gay", "Heterosexual or straight", "Bisexual"]) == "Heterosexual or straight"
+    assert not is_open_ended("How did you hear about us?")
