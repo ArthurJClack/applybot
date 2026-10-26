@@ -115,7 +115,7 @@ RULES: list[tuple[str, str]] = [
     ("logistics.salary_expectation", r"salary|compensation|pay (expectation|requirement)|desired pay"),
     ("logistics.notice_period", r"notice period"),
     ("logistics.in_person_ok", r"in[- ]person|on[- ]?site|in[- ]office|hybrid|commute"),
-    ("logistics.how_did_you_hear", r"how did you (hear|find|learn)|where did you (hear|find|see)|referral source|^source$"),
+    ("logistics.how_did_you_hear", r"how did you (hear|find|learn)|where did you (hear|find|see)|referral source|^source$|what brought you to"),
 ]
 
 SENSITIVE_PREFIXES = ("eeo.", "sensitive.", "work_authorization.")
@@ -128,7 +128,7 @@ OPEN_ENDED_RE = re.compile(
 LONG_OK = {"cover_letter", "resume_file", "transcript_file", "consent"}
 
 
-_NOT_OPEN = re.compile(r"how did you (hear|find|learn|come across)", re.I)
+_NOT_OPEN = re.compile(r"how did you (hear|find|learn|come across)|what brought you to", re.I)
 
 
 def is_open_ended(question: str, kind: str = "") -> bool:
