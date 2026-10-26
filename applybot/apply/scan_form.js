@@ -83,6 +83,28 @@
                placeholder: clean(el.placeholder), accept: el.getAttribute('accept') || '' });
   }
 
+  // Button-only yes/no questions (e.g. Ashby): two sibling <button>s "Yes" / "No" with no form input behind them.
+  const seenYesNo = new Set();
+  for (const btn of document.querySelectorAll('button')) {
+    if (clean(btn.innerText).toLowerCase() !== 'yes' || !isVisible(btn)) continue;
+    const grp = btn.parentElement;
+    if (!grp || seenYesNo.has(grp)) continue;
+    const btns = Array.from(grp.children).filter(e => e.tagName === 'BUTTON');
+    if (btns.length !== 2 || !btns.some(b => clean(b.innerText).toLowerCase() === 'no')) continue;
+    let near = grp.parentElement, tagged = false;
+    for (let i = 0; i < 2 && near; i++, near = near.parentElement) {
+      if (near.querySelector('input[data-ab], select[data-ab], textarea[data-ab]')) { tagged = true; break; }
+    }
+    if (tagged) continue;  // a hidden checkbox already represents this question
+    seenYesNo.add(grp);
+    const label = containerLabel(grp, btns);
+    grp.setAttribute('data-ab', String(n));
+    btns.forEach((b, i) => b.setAttribute('data-ab-opt', String(i)));
+    const on = btns.find(b => b.getAttribute('aria-pressed') === 'true' || /active|selected|checked/i.test(b.className));
+    out.push({ n: n++, kind: 'yesno', label, name: '', required: isRequired(grp, label),
+               options: btns.map(b => clean(b.innerText)), value: on ? clean(on.innerText) : '', placeholder: '' });
+  }
+
   for (const [gkey, els] of Object.entries(groups)) {
     const type = gkey.split(':')[0];
     const optLabels = els.map(e => ownLabel(e) || clean(e.value));

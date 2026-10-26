@@ -292,9 +292,27 @@ class Applicant:
                 return True
             if kind == "combobox":
                 return self._fill_combobox(frame, loc.first, str(value), item)
+            if kind == "yesno":
+                chosen = choose_option(value, item["options"] or [])
+                if chosen is None:
+                    return False
+                idx = item["options"].index(chosen)
+                frame.locator(f'{sel} [data-ab-opt="{idx}"]').first.click()
+                frame.page.wait_for_timeout(250)
+                return bool(loc.first.evaluate(self._YESNO_PICKED_JS, idx))
         except Exception as e:
             self.log(f"[yellow]  could not fill '{item.get('label')}' ({kind}): {str(e).splitlines()[0][:120]}[/yellow]")
         return False
+
+    _YESNO_PICKED_JS = """(grp, idx) => {
+        const btns = Array.from(grp.querySelectorAll('[data-ab-opt]'));
+        const b = btns[idx], other = btns[1 - idx];
+        if (!b) return false;
+        if (b.getAttribute('aria-pressed') === 'true' || /active|selected|checked/i.test(b.className)) return true;
+        if (!other) return false;
+        const bg = e => getComputedStyle(e).backgroundColor, fg = e => getComputedStyle(e).color;
+        return bg(b) !== bg(other) || fg(b) !== fg(other);   // the picked button is styled differently
+    }"""
 
     _YESNO_JS = """(el, want) => {
         let p = el.parentElement;
