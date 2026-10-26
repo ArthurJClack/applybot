@@ -379,6 +379,8 @@ class Applicant:
             lb = el.get_attribute("aria-controls") or el.get_attribute("aria-owns")
             opts = frame.locator(f'[id="{lb}"] [role=option]') if lb else frame.locator("[role=option]:visible")
             texts = [opts.nth(i).inner_text().strip() for i in range(min(opts.count(), 50))]
+            if texts and not t:
+                self._seen_options[item["n"]] = texts
             chosen = choose_option(value, texts) if texts else None
             if chosen is None and texts and t and t != value:
                 chosen = choose_option(t, texts)
@@ -397,6 +399,12 @@ class Applicant:
         except Exception:
             pass
         return False
+
+    def _options_note(self, item: dict) -> str:
+        """The choices a dropdown/radio offered, so a human (or Claude) can answer it precisely next time."""
+        opts = item.get("options") or getattr(self, "_seen_options", {}).get(item["n"]) or []
+        opts = [o for o in opts if o and o.lower() not in ("select...", "select", "please select")]
+        return f" [options: {' | '.join(o[:40] for o in opts[:15])}]" if opts else ""
 
     def _upload_files(self, page, files: dict[str, Path], answers_log: dict) -> bool:
         """Upload resume / cover letter / transcript one at a time, rescanning after each (uploads change the DOM)."""
@@ -427,6 +435,7 @@ class Applicant:
     def fill_page(self, page, job: dict, files: dict[str, Path]) -> tuple[dict, list[str]]:
         """Fill every control on the current page. Returns (answers_log, unresolved_required_questions)."""
         answers_log: dict[str, str] = {}
+        self._seen_options = {}
         # Upload files first: many ATS parse the resume and auto-fill fields. Uploads change the DOM, so the
         # fields are scanned only AFTER all uploads - element numbers from an earlier scan would point at the
         # wrong inputs.
@@ -453,7 +462,7 @@ class Applicant:
             sensitive = bool(r.category and r.category.startswith(SENSITIVE_PREFIXES))
             if r.value is None:
                 if f.required:
-                    unresolved.append(f.question)
+                    unresolved.append(f.question + self._options_note(item))
                 continue
             ok = self._fill_one(frame, item, r.value, files)
             if not ok and r.category == "logistics.how_did_you_hear" and item["kind"] != "text":
@@ -463,7 +472,7 @@ class Applicant:
                         break
             answers_log[f.question] = f"{r.value}  [{r.source}]" + ("" if ok else "  (NOT FILLED)")
             if not ok and (f.required or sensitive):  # never submit with a legal/EEO answer we couldn't place
-                unresolved.append(f.question)
+                unresolved.append(f.question + f" (tried '{r.value}')" + self._options_note(item))
         return answers_log, unresolved
 
     # ------------------------------------------------------------------ main flow
