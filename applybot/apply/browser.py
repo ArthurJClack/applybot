@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from applybot.answers import AnswerBank, Field, Resolution, choose_option, classify, resolve_fields
+from applybot.answers import (SENSITIVE_PREFIXES, AnswerBank, Field, Resolution, choose_option, classify,
+                              resolve_fields)
 from applybot.llm import LLM
 
 SCAN_JS = "\n".join(ln for ln in (Path(__file__).with_name("scan_form.js")).read_text(encoding="utf-8").splitlines()
@@ -285,29 +286,100 @@ class Applicant:
                     loc.first.check(force=True)
                 return True
             if kind == "combobox":
-                loc.first.click()
-                loc.first.fill(str(value))
-                frame.page.wait_for_timeout(900)
-                opts = frame.locator("[role=option]:visible")
-                texts = [opts.nth(i).inner_text().strip() for i in range(min(opts.count(), 50))]
-                chosen = choose_option(value, texts) if texts else None
-                if chosen is None:
-                    loc.first.fill("")
-                    return False
-                opts.nth(texts.index(chosen)).click()
-                return True
+                return self._fill_combobox(frame, loc.first, str(value), item)
         except Exception as e:
             self.log(f"[yellow]  could not fill '{item.get('label')}' ({kind}): {str(e).splitlines()[0][:120]}[/yellow]")
         return False
 
+    _COMBO_SHOWS_JS = """(el, want) => {
+        const n = s => (s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+        const w = n(want);
+        if (n(el.value) === w) return true;
+        let p = el.parentElement;
+        for (let i = 0; i < 5 && p; i++, p = p.parentElement) {
+            const c = p.cloneNode(true);
+            c.querySelectorAll('label, legend, [role=listbox], [role=option]').forEach(x => x.remove());
+            const t = n(c.innerText || c.textContent);
+            if (t === w || t.split(/\\s{2,}|\\n/).some(x => n(x) === w) || (w.length > 3 && t.includes(w))) return true;
+            if (p.querySelector('label') && p.querySelectorAll('input, select, textarea').length > 2) break;
+        }
+        return false;
+    }"""
+
+    def _fill_combobox(self, frame, el, value: str, item: dict) -> bool:
+        """Type into a searchable dropdown, pick the matching option from THIS field's listbox, then verify the
+        field actually shows it (a wrong pick on a legal question is worse than no pick)."""
+        page = frame.page
+        try:
+            page.keyboard.press("Escape")  # close any menu still open from the previous field
+        except Exception:
+            pass
+        el.click()
+        words = value.split()
+        tries = [value] + [" ".join(words[:k]) for k in (3, 2, 1) if len(words) > k]
+        for t in tries:
+            el.fill("")
+            el.press_sequentially(t, delay=25)
+            page.wait_for_timeout(700)
+            lb = el.get_attribute("aria-controls") or el.get_attribute("aria-owns")
+            opts = frame.locator(f'[id="{lb}"] [role=option]') if lb else frame.locator("[role=option]:visible")
+            texts = [opts.nth(i).inner_text().strip() for i in range(min(opts.count(), 50))]
+            chosen = choose_option(value, texts) if texts else None
+            if chosen is None and texts and t != value:
+                chosen = choose_option(t, texts)
+            if chosen is None:
+                continue
+            opts.nth(texts.index(chosen)).click()
+            page.wait_for_timeout(300)
+            if el.evaluate(self._COMBO_SHOWS_JS, chosen):
+                return True
+            self.log(f"[yellow]  '{item.get('label', '')[:60]}': picked '{chosen}' but could not confirm it - "
+                     f"left for review[/yellow]")
+            return False
+        el.fill("")
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+        return False
+
+    def _upload_files(self, page, files: dict[str, Path], answers_log: dict) -> bool:
+        """Upload resume / cover letter / transcript one at a time, rescanning after each (uploads change the DOM)."""
+        done: set[str] = set()
+        resume_done = False
+        for _ in range(4):
+            file_items = [(fr, it) for fr, it in self._scan(page) if it["kind"] == "file" and not it.get("value")]
+            pick = None
+            for frame, item in file_items:
+                cat = classify(item.get("label", "") + " " + item.get("name", ""), "file")
+                target = {"resume_file": "resume", "cover_letter": "cover_letter",
+                          "transcript_file": "transcript"}.get(cat or "")
+                if target is None and not resume_done and len(file_items) == 1:
+                    target = "resume"
+                if target and target in files and target not in done:
+                    pick = (frame, item, target)
+                    break
+            if pick is None:
+                break
+            frame, item, target = pick
+            done.add(target)
+            if self._fill_one(frame, item, target, files):
+                answers_log[item.get("label") or target] = f"<uploaded {files[target].name}>"
+                resume_done = resume_done or target == "resume"
+                page.wait_for_timeout(2500 if target == "resume" else 1000)
+        return resume_done
+
     def fill_page(self, page, job: dict, files: dict[str, Path]) -> tuple[dict, list[str]]:
         """Fill every control on the current page. Returns (answers_log, unresolved_required_questions)."""
-        scanned = self._scan(page)
+        answers_log: dict[str, str] = {}
+        # Upload files first: many ATS parse the resume and auto-fill fields. Uploads change the DOM, so the
+        # fields are scanned only AFTER all uploads - element numbers from an earlier scan would point at the
+        # wrong inputs.
+        self._upload_files(page, files, answers_log)
+
         fields, index = [], {}
-        file_items = []
-        for frame, item in scanned:
+        for frame, item in self._scan(page):
             if item["kind"] == "file":
-                file_items.append((frame, item))
                 continue
             if item.get("value") and item["kind"] not in ("checkbox",):
                 continue  # already filled (e.g. pre-populated after resume parsing)
@@ -317,39 +389,20 @@ class Applicant:
                                 placeholder=item.get("placeholder", "")))
             index[key] = (frame, item)
 
-        answers_log: dict[str, str] = {}
-        # Upload files first: many ATS parse the resume and auto-fill fields.
-        resume_done = False
-        for frame, item in file_items:
-            if item.get("value"):
-                continue
-            cat = classify(item.get("label", "") + " " + item.get("name", ""), "file")
-            target = {"resume_file": "resume", "cover_letter": "cover_letter",
-                      "transcript_file": "transcript"}.get(cat or "", None)
-            if target is None and not resume_done and len(file_items) == 1:
-                target = "resume"
-            if target and target in files and self._fill_one(frame, item, target, files):
-                answers_log[item.get("label") or target] = f"<uploaded {files[target].name}>"
-                resume_done = resume_done or target == "resume"
-        if resume_done:
-            page.wait_for_timeout(2500)
-            prefilled = {f"{id(fr)}:{it['n']}" for fr, it in self._scan(page)
-                         if it["kind"] != "file" and it.get("value") and it["kind"] != "checkbox"}
-            fields = [f for f in fields if f.key not in prefilled]
-
         resolutions: dict[str, Resolution] = resolve_fields(fields, self.bank, self.profile, job, self.llm,
                                                             ask_human=self.ask_human)
         unresolved = []
         for f in fields:
             r = resolutions[f.key]
             frame, item = index[f.key]
+            sensitive = bool(r.category and r.category.startswith(SENSITIVE_PREFIXES))
             if r.value is None:
                 if f.required:
                     unresolved.append(f.question)
                 continue
             ok = self._fill_one(frame, item, r.value, files)
-            answers_log[f.question] = f"{r.value}  [{r.source}]"
-            if not ok and f.required:
+            answers_log[f.question] = f"{r.value}  [{r.source}]" + ("" if ok else "  (NOT FILLED)")
+            if not ok and (f.required or sensitive):  # never submit with a legal/EEO answer we couldn't place
                 unresolved.append(f.question)
         return answers_log, unresolved
 

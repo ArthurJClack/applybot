@@ -81,7 +81,7 @@ RULES: list[tuple[str, str]] = [
     ("sensitive.non_compete", r"non-?compete|restrictive covenant|non-?solicit"),
     ("sensitive.background_check_ok", r"background check"),
     ("sensitive.drug_test_ok", r"drug (test|screen)"),
-    ("consent", r"\b(i (agree|acknowledge|consent|certify|confirm|understand|attest))|privacy (policy|notice)|terms (and|&) conditions|consent to"),
+    ("consent", r"\b(i (agree|acknowledge|consent|certify|confirm|understand|attest))|i am certifying|i hereby certify|privacy (policy|notice)|terms (and|&) conditions|consent to"),
     ("first_name", r"^(legal )?first name|^given name|first name\b"),
     ("last_name", r"^(legal )?last name|surname|family name|last name\b"),
     ("basics.preferred_name", r"preferred (first )?name|nickname"),
@@ -98,6 +98,8 @@ RULES: list[tuple[str, str]] = [
     ("basics.country", r"country"),
     ("logistics.willing_to_relocate", r"relocat"),
     ("location", r"location|where (are you|do you) (based|live|located)|current(ly)? (located|residing)"),
+    ("grad_month", r"end date month|graduation month|month of graduation|end month"),
+    ("grad_year", r"end date year|graduation year|year of graduation|end year|class year"),
     ("graduation", r"graduat|completion date|expected (grad|completion)|class of"),
     ("school", r"school|university|college|institution"),
     ("degree", r"degree( type| level)?$|level of education|highest (degree|education)"),
@@ -129,7 +131,8 @@ def is_open_ended(question: str, kind: str = "") -> bool:
 
 
 def classify(question: str, kind: str = "") -> str | None:
-    q = (question or "").lower()
+    q = (question or "").lower().replace("_", " ")
+    q = re.sub(r"\s*(\*|\(required\))\s*$", "", q.strip())  # "Degree*" -> "degree"
     open_ended = is_open_ended(question, kind)
     for cat, pattern in RULES:
         if open_ended and cat not in LONG_OK:
@@ -189,6 +192,48 @@ def choose_option(value: str, options: list[str]) -> str | None:
     return None
 
 
+YES_NO_Q = re.compile(r"^\s*(are|will|do|did|have|has|is|can|were|would)\s+you\b", re.I)
+
+
+def _degree_level(degree: str) -> str:
+    """'B.S. Computer Science' -> "Bachelor's" (what degree dropdowns list)."""
+    d = (degree or "").strip().lower()
+    if re.match(r"(b\.?\s?[sae]\.?|b\.?eng|bachelor)", d):
+        return "Bachelor's"
+    if re.match(r"(m\.?\s?[sae]\.?|m\.?eng|master|mba)", d):
+        return "Master's"
+    if re.match(r"(ph\.?d|doctor)", d):
+        return "Doctorate"
+    if re.match(r"(a\.?\s?[as]\.?|associate)", d):
+        return "Associate's"
+    return ""
+
+
+_MONTHS = {m: i for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov",
+                                       "dec"), 1)}
+
+
+def _ym(text: str) -> list[tuple[int, int]]:
+    out = []
+    for mon, yr in re.findall(r"(?:([A-Za-z]{3,})\.?\s+)?((?:19|20)\d{2})", text or ""):
+        out.append((int(yr), _MONTHS.get(mon[:3].lower(), 0) if mon else 0))
+    return out
+
+
+def _graduation_yes_no(question: str, grad: str) -> str | None:
+    """'Are you projected to graduate between May 2026 and December 2029?' with grad 'June 2027' -> 'Yes'."""
+    g = _ym(grad)
+    rng = _ym(question)
+    if not g or len(rng) != 2:
+        return None
+    (gy, gm), (ay, am), (by, bm) = g[0], rng[0], rng[1]
+    if not gm:
+        inside = ay <= gy <= by
+    else:
+        inside = (ay, am or 1) <= (gy, gm) <= (by, bm or 12)
+    return "Yes" if inside else "No"
+
+
 class AnswerBank:
     def __init__(self, path: str | Path, profile: dict, resume_text: str = "", cover_letter_text: str = ""):
         self.path = Path(path)
@@ -234,6 +279,9 @@ class AnswerBank:
             "basics.state": loc_parts[1] if len(loc_parts) > 1 else "",
             "school": edu.get("school", ""), "degree": degree, "major": major, "gpa": edu.get("gpa", ""),
             "graduation": grad,
+            "grad_month": (re.search(r"[A-Za-z]{3,}", grad) or [""])[0] if grad else "",
+            "grad_year": (re.search(r"(19|20)\d{2}", grad) or [""])[0] if grad else "",
+            "degree_level": _degree_level(degree),
         }
         return values.get(cat, "")
 
@@ -242,6 +290,10 @@ class AnswerBank:
         cat = classify(field.question, field.kind)
         if cat is None:
             return None, None
+        if cat == "graduation" and YES_NO_Q.match(field.question or ""):
+            return _graduation_yes_no(field.question, self._profile_value("graduation")), cat
+        if cat == "degree" and field.kind in ("combobox", "select", "radio"):
+            return (self._profile_value("degree_level") or self._profile_value("degree") or None), cat
         if cat in ("resume_file", "transcript_file"):
             return (None, cat) if field.kind != "file" else ("__FILE__", cat)
         if cat == "cover_letter":

@@ -82,3 +82,19 @@ def test_direct_form_url_handles_embedded_greenhouse():
     assert "greenhouse.io/embed/job_app" in url and "token=6176786004" in url
     assert account_site("https://blueorigin.wd5.myworkdayjobs.com/x") == "myworkdayjobs.com"
     assert account_site("https://job-boards.greenhouse.io/axon/jobs/1") == ""
+
+
+def test_form_question_matching_fixes():
+    from applybot.answers import _degree_level, _graduation_yes_no, classify
+    assert classify("Attach cover_letter", "file") == "cover_letter"
+    assert classify("Degree*") == "degree"
+    assert classify("End date month*") == "grad_month"
+    assert classify("End date year*") == "grad_year"
+    assert classify('By selecting "Yes", I am certifying that the information is true.*') == "consent"
+    assert classify("Will you now or in the future require visa sponsorship?*") == "work_authorization.requires_sponsorship"
+    assert _degree_level("B.S. Computer Science and Systems") == "Bachelor's"
+    assert _degree_level("A.A. Computer Science") == "Associate's"
+    q = "Are you projected to graduate between May 2026 and December 2029?"
+    assert _graduation_yes_no(q, "June 2027") == "Yes"
+    assert _graduation_yes_no(q, "June 2030") == "No"
+    assert _graduation_yes_no("Are you graduating?", "June 2027") is None
