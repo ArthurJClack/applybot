@@ -77,7 +77,7 @@ RULES: list[tuple[str, str]] = [
     ("work_authorization.authorized_to_work", r"authori[sz]ed to work|eligible to work|legally (permitted|able|allowed)|right to work|work authori[sz]ation"),
     ("sensitive.over_18", r"(18|eighteen) years|at least 18|over the age|legal age"),
     ("sensitive.criminal_conviction", r"convict|felony|criminal|misdemeanor"),
-    ("sensitive.previously_employed_here", r"(previously|ever|formerly) (been )?(employed|worked)|former employee|worked (for|at) .* before|current employee of"),
+    ("sensitive.previously_employed_here", r"(previously|ever|formerly) (been )?(employed|worked)|former employee|worked (for|at) .* before|current employee of|^have you (ever )?worked (at|for)\b"),
     ("sensitive.non_compete", r"non-?compete|restrictive covenant|non-?solicit"),
     ("sensitive.background_check_ok", r"background check"),
     ("sensitive.drug_test_ok", r"drug (test|screen)"),
