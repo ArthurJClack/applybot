@@ -1,0 +1,58 @@
+# Contact
+Name: Alex Rivera
+Email: alex.rivera@example.com
+Phone: (555) 123-4567
+Location: Austin, TX
+LinkedIn: linkedin.com/in/alexrivera
+GitHub: github.com/alexrivera
+Website: alexrivera.dev
+
+# Summary
+Computer science student focused on backend systems and machine learning infrastructure.
+
+# Education
+University of Texas at Austin | B.S. Computer Science | Aug 2024 - May 2028 | GPA: 3.8
+- Relevant coursework: Data Structures, Algorithms, Operating Systems, Machine Learning, Databases
+- Dean's List (4 semesters)
+
+# Experience
+Software Engineering Intern | Acme Analytics | Austin, TX | May 2026 - Aug 2026
+- Built a Python/FastAPI service that ingests 2M events per day into PostgreSQL, cutting report latency by 40%
+- Added Redis caching to the customer dashboard API, reducing p95 response time from 900ms to 250ms
+- Wrote integration tests with pytest and GitHub Actions, raising coverage from 55% to 82%
+
+Undergraduate Research Assistant | UT Machine Learning Lab | Austin, TX | Jan 2025 - Present
+- Trained PyTorch image-classification models on a 4-GPU cluster and automated experiment tracking
+- Built data-cleaning pipelines in pandas for a 300k-image dataset
+
+# Projects
+StudyBuddy | React, TypeScript, Node.js, MongoDB | github.com/alexrivera/studybuddy
+- Built a study-group matching web app used by 1,200 students across 3 universities
+- Implemented real-time chat with WebSockets and JWT authentication
+
+Raytracer | C++ | github.com/alexrivera/raytracer
+- Wrote a multithreaded ray tracer supporting reflections, refraction, and BVH acceleration
+
+# Leadership
+Vice President | Longhorn Developers Club | Austin, TX | Aug 2025 - Present
+- Organize weekly technical workshops for 150+ members and run a 24-hour hackathon
+
+# Skills
+Languages: Python, Java, C++, TypeScript, JavaScript, SQL
+Frameworks: FastAPI, React, Node.js, PyTorch, pandas
+Tools: Git, Docker, PostgreSQL, Redis, MongoDB, AWS, Linux, GitHub Actions
+
+# Awards
+- HackTX 2025 - 1st Place, Best Use of AI
+
+# Preferences
+Work Authorization: US Citizen
+Needs Sponsorship: No
+Desired Roles: Software Engineer Intern, Machine Learning Intern, Backend Engineer Intern
+Start Date: May 2027
+Willing to Relocate: Yes
+
+# Other
+Anything else useful for applications: languages spoken, clearance, hobbies, stories you'd like the AI to use in
+"why us" or behavioral answers, etc. With AI enabled you can also skip the sections above entirely and just paste
+your old resume, LinkedIn "About" text, and notes here in any format.

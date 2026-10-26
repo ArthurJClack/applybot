@@ -1,0 +1,58 @@
+# Answers to common application questions. ApplyBot NEVER lets the AI guess legal, work-authorization,
+# demographic (EEO), or attestation questions - they come only from this file or from you at the prompt.
+# Leave a value empty ("") to be asked when a form requires it.
+
+basics:
+  preferred_name: ""
+  pronouns: ""
+  address: ""
+  city: ""            # defaults to the city in profile.txt Location
+  state: ""
+  zip: ""
+  country: United States
+  current_company: ""
+  current_title: ""
+  years_experience: ""
+
+work_authorization:
+  authorized_to_work: "Yes"       # legally authorized to work in the country of the job?
+  requires_sponsorship: "No"      # now or in the future?
+
+logistics:
+  start_date: ""
+  salary_expectation: ""          # e.g. "Negotiable" or "$45/hr"
+  willing_to_relocate: "Yes"
+  notice_period: ""
+  how_did_you_hear: Online job board
+  in_person_ok: "Yes"
+
+# Voluntary self-identification. Defaults decline to answer; change if you wish to disclose.
+eeo:
+  gender: Decline to self-identify
+  race: Decline to self-identify
+  hispanic_latino: Decline to self-identify
+  veteran: I am not a protected veteran
+  disability: I do not want to answer
+  sexual_orientation: Decline to self-identify
+  transgender: Decline to self-identify
+
+sensitive:
+  over_18: "Yes"
+  criminal_conviction: ""         # you will be asked if a form requires it
+  previously_employed_here: "No"
+  non_compete: ""
+  background_check_ok: "Yes"
+  drug_test_ok: "Yes"
+
+# Automatically tick "I agree to the privacy policy / I certify my answers are accurate" boxes.
+auto_consent: true
+
+files:
+  transcript: ""                  # path to an unofficial transcript PDF, uploaded when a form asks for one
+
+# Your own question -> answer rules. A key matches if it appears anywhere in the form's question.
+custom:
+  "are you currently enrolled": "Yes"
+
+# Answers you type at prompts are saved here automatically and reused next time.
+learned: {}
