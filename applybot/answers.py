@@ -157,6 +157,8 @@ _DECLINE = ("decline", "prefer not", "not to answer", "do not want", "don t wish
 
 
 _ALIASES = {"male": ("man", "cisgender man", "cis man"), "female": ("woman", "cisgender woman", "cis woman"),
+            "u s citizen": ("a united states citizen", "united states citizen", "us citizen", "u s citizen or national",
+                            "citizen of the united states", "yes i am a u s citizen"),
             "man": ("male",), "woman": ("female",)}
 
 
@@ -213,17 +215,33 @@ def choose_option(value: str, options: list[str]) -> str | None:
                          if _polarity(o) is None), key=lambda x: -x[0])
         if scored and scored[0][0] >= 2 and (len(scored) == 1 or scored[1][0] < scored[0][0]):
             return scored[0][1]
-    # GPA-style numeric answer vs range options ("3.5 - 4.0")
+    # GPA-style numeric answer vs range options ("3.5 - 4.0", "3.75+", "3.6 or above", "Below 3.4")
     if re.fullmatch(r"\d+(\.\d+)?", str(value).strip()):
         x = float(value)
         for o in opts:
             m = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|\u2013|to)\s*(\d+(?:\.\d+)?)", o)
             if m and float(m.group(1)) <= x <= float(m.group(2)):
                 return o
-    # "June 2027" vs term options ("Spring 2027", "Summer 2027")
+            m = re.search(r"(\d+(?:\.\d+)?)\s*(?:\+|or (?:above|higher|more))", o, re.I)
+            if m and x >= float(m.group(1)):
+                return o
+            m = re.search(r"(?:below|under|less than)\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*or (?:below|lower|less)", o, re.I)
+            if m and x < float(m.group(1) or m.group(2)) + (0.0001 if m.group(2) else 0):
+                return o
+    # yes/agree for a lone acknowledgement option ("Acknowledge/Confirm")
+    if pol == "yes" or v in ("yes", "i agree", "agree"):
+        acks = [o for o in opts if re.search(r"acknowledg|confirm|agree|accept|i understand|i certify|i affirm", o, re.I)]
+        if len(opts) == 1 or len(acks) == 1:
+            return opts[0] if len(opts) == 1 else acks[0]
+    # "June 2027" vs term options ("Spring 2027", "Summer 2027") or month ranges ("April to July 2027")
     md = re.fullmatch(r"([a-z]+) ((?:19|20)\d{2})", v)
     if md and md.group(1)[:3] in _MONTHS:
         mo, yr = _MONTHS[md.group(1)[:3]], md.group(2)
+        when = int(yr) * 12 + mo
+        for o in opts:
+            r = _month_range(o)
+            if r and r[0] <= when <= r[1]:
+                return o
         terms = ["winter"] if mo <= 2 else ["spring", "summer"] if mo <= 6 else ["summer", "fall"] if mo <= 8 else ["fall"]
         for t in terms:
             for o in opts:
@@ -233,7 +251,7 @@ def choose_option(value: str, options: list[str]) -> str | None:
     return None
 
 
-_NON_BOOLEAN = {"school", "degree", "major", "gpa", "logistics.start_date", "location", "basics.city", "basics.state",
+_NON_BOOLEAN = {"linkedin", "github", "website", "school", "degree", "major", "gpa", "logistics.start_date", "location", "basics.city", "basics.state",
                 "basics.country", "basics.address", "basics.zip", "grad_month", "grad_year", "edu_start_month",
                 "edu_start_year", "logistics.salary_expectation", "basics.current_company", "basics.current_title",
                 "logistics.how_did_you_hear", "first_name", "last_name", "full_name", "email", "phone"}
@@ -272,6 +290,29 @@ def _ym(text: str) -> list[tuple[int, int]]:
     for mon, yr in re.findall(r"(?:([A-Za-z]{3,})\.?\s+)?((?:19|20)\d{2})", text or ""):
         out.append((int(yr), _MONTHS.get(mon[:3].lower(), 0) if mon else 0))
     return out
+
+
+def _month_range(text: str) -> tuple[int, int] | None:
+    """'April to July 2027' / 'September 2026 - November 2027' / 'Before September 2026' / 'September 2027 or later'
+    -> (first, last) as year*12+month."""
+    t = (text or "").lower()
+    pts = re.findall(r"([a-z]{3,})\.?\s*((?:19|20)\d{2})?", t)
+    months = [(m[:3], y) for m, y in pts if m[:3] in _MONTHS]
+    if not months:
+        return None
+    years = [int(y) for _, y in months if y]
+    if not years:
+        return None
+    def val(i):
+        m, y = months[i]
+        return (int(y) if y else years[-1]) * 12 + _MONTHS[m]
+    if re.search(r"\bbefore\b", t):
+        return (0, val(0) - 1)
+    if re.search(r"or later|and later|after", t):
+        return (val(0), 10 ** 6)
+    if len(months) >= 2:
+        return (val(0), val(len(months) - 1))
+    return None
 
 
 def _graduation_yes_no(question: str, grad: str) -> str | None:
@@ -476,7 +517,11 @@ def resolve_fields(fields: list[Field], bank: AnswerBank, profile: dict, job: di
                    ask_human: Callable[[Field], str | None] | None = None) -> dict[str, Resolution]:
     out: dict[str, Resolution] = {}
     pending: list[Field] = []
+    title_q = re.compile(r"what (full[- ]time |part[- ]time )?(job|position|role)\(?s?\)? (are|is) (you|this)? ?(applying|interested)", re.I)
     for f in fields:
+        if title_q.search(f.question or "") and (job or {}).get("title"):
+            out[f.key] = Resolution(job["title"], "rule", "job_title")
+            continue
         saved = bank.saved_answer(f.question) if f.kind != "file" else None
         val, cat = bank.rule_answer(f)
         if saved:  # your explicit/learned answers always win

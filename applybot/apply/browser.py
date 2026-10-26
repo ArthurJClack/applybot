@@ -280,15 +280,19 @@ class Applicant:
                 chosen = [c for c in (choose_option(v, item["options"] or []) for v in values) if c]
                 if not chosen:
                     return False
-                loc.first.select_option(label=chosen if kind == "multiselect" else chosen[0])
-                return True
+                picked = loc.first.evaluate(self._SELECT_JS, chosen)  # match on cleaned text, not exact label
+                return bool(picked)
             if kind == "radio":
                 chosen = choose_option(value, item["options"] or [])
                 if chosen is None:
                     return False
                 idx = item["options"].index(chosen)
-                frame.locator(f'{sel}[data-ab-opt="{idx}"]').first.check(force=True)
-                return True
+                radio = frame.locator(f'{sel}[data-ab-opt="{idx}"]').first
+                try:
+                    radio.check(force=True)
+                except Exception:
+                    radio.evaluate("e => (e.closest('label') || e).click()")
+                return bool(radio.evaluate("e => e.checked"))
             if kind == "checkbox_group":
                 ok = False
                 for v in _as_list(value):
@@ -320,6 +324,20 @@ class Applicant:
         except Exception as e:
             self.log(f"[yellow]  could not fill '{item.get('label')}' ({kind}): {str(e).splitlines()[0][:120]}[/yellow]")
         return False
+
+    _SELECT_JS = """(sel, wanted) => {
+        const n = s => (s || '').replace(/\\s+/g, ' ').trim();
+        const want = new Set(wanted.map(n));
+        let hit = 0;
+        for (const o of sel.options) {
+            const on = want.has(n(o.text));
+            if (on) hit++;
+            if (sel.multiple) o.selected = on; else if (on) { sel.value = o.value; break; }
+        }
+        sel.dispatchEvent(new Event('input', {bubbles: true}));
+        sel.dispatchEvent(new Event('change', {bubbles: true}));
+        return hit;
+    }"""
 
     _YESNO_PICKED_JS = """(grp, idx) => {
         const btns = Array.from(grp.querySelectorAll('[data-ab-opt]'));
