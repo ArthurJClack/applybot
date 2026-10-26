@@ -97,6 +97,7 @@ RULES: list[tuple[str, str]] = [
     ("basics.state", r"^state|province|region"),
     ("basics.country", r"country"),
     ("logistics.willing_to_relocate", r"relocat"),
+    ("logistics.in_person_ok", r"in[- ]office requirement|willing (and able )?to work in the location|able to work (in|at|from) (the |our )?(office|location)"),
     ("location", r"location|where (are you|do you) (based|live|located)|current(ly)? (located|residing)"),
     ("grad_month", r"end date month|graduation month|month of graduation|end month"),
     ("grad_year", r"end date year|graduation year|year of graduation|end year|class year"),
@@ -111,7 +112,7 @@ RULES: list[tuple[str, str]] = [
     ("logistics.start_date", r"start date|when can you start|available to start|availability"),
     ("logistics.salary_expectation", r"salary|compensation|pay (expectation|requirement)|desired pay"),
     ("logistics.notice_period", r"notice period"),
-    ("logistics.in_person_ok", r"in[- ]person|on[- ]?site|in office|hybrid|commute"),
+    ("logistics.in_person_ok", r"in[- ]person|on[- ]?site|in[- ]office|hybrid|commute"),
     ("logistics.how_did_you_hear", r"how did you (hear|find|learn)|where did you (hear|find|see)|referral source|^source$"),
 ]
 

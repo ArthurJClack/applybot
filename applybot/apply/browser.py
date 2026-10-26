@@ -301,6 +301,8 @@ class Applicant:
             c.querySelectorAll('label, legend, [role=listbox], [role=option]').forEach(x => x.remove());
             const t = n(c.innerText || c.textContent);
             if (t === w || t.split(/\\s{2,}|\\n/).some(x => n(x) === w) || (w.length > 3 && t.includes(w))) return true;
+            // shown text can be a short form of the option ("United States +1" shows "+1")
+            if (w.length >= 6 && t.split(/\\s{2,}|\\n/).map(n).some(x => x.length >= 2 && x !== 'select...' && w.includes(x))) return true;
             if (p.querySelector('label') && p.querySelectorAll('input, select, textarea').length > 2) break;
         }
         return false;
@@ -316,7 +318,7 @@ class Applicant:
             pass
         el.click()
         words = value.split()
-        tries = [value] + [" ".join(words[:k]) for k in (3, 2, 1) if len(words) > k]
+        tries = [value] + [" ".join(words[:k]) for k in (3, 2, 1) if len(words) > k] + [""]  # "" = full list
         for t in tries:
             el.fill("")
             el.press_sequentially(t, delay=25)
@@ -325,7 +327,7 @@ class Applicant:
             opts = frame.locator(f'[id="{lb}"] [role=option]') if lb else frame.locator("[role=option]:visible")
             texts = [opts.nth(i).inner_text().strip() for i in range(min(opts.count(), 50))]
             chosen = choose_option(value, texts) if texts else None
-            if chosen is None and texts and t != value:
+            if chosen is None and texts and t and t != value:
                 chosen = choose_option(t, texts)
             if chosen is None:
                 continue
