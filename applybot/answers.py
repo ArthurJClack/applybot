@@ -66,6 +66,7 @@ RULES: list[tuple[str, str]] = [
     ("resume_file", r"\b(resume|r[eé]sum[eé]|cv)\b"),
     ("cover_letter", r"cover\s*letter"),
     ("transcript_file", r"transcript"),
+    ("basics.pronouns", r"pronoun"),
     ("eeo.gender", r"\bgender\b|\bsex\b"),
     ("eeo.transgender", r"transgender"),
     ("eeo.sexual_orientation", r"sexual orientation"),
@@ -73,7 +74,6 @@ RULES: list[tuple[str, str]] = [
     ("eeo.race", r"\brace\b|ethnicity|racial"),
     ("eeo.veteran", r"veteran|military service"),
     ("eeo.disability", r"disabilit"),
-    ("basics.pronouns", r"pronoun"),
     ("work_authorization.requires_sponsorship", r"sponsor|visa status|h-?1b|immigration"),
     ("work_authorization.authorized_to_work", r"authori[sz]ed to work|eligible to work|legally (permitted|able|allowed)|right to work|work authori[sz]ation"),
     ("sensitive.over_18", r"(18|eighteen) years|at least 18|over the age|legal age"),
@@ -157,6 +157,7 @@ _DECLINE = ("decline", "prefer not", "not to answer", "do not want", "don t wish
 
 
 _ALIASES = {"male": ("man", "cisgender man", "cis man"), "female": ("woman", "cisgender woman", "cis woman"),
+            "united states": ("united states of america", "usa", "us", "u s", "u s a", "united states us"),
             "u s citizen": ("a united states citizen", "united states citizen", "us citizen", "u s citizen or national",
                             "citizen of the united states", "yes i am a u s citizen"),
             "man": ("male",), "woman": ("female",)}
@@ -200,7 +201,7 @@ def choose_option(value: str, options: list[str]) -> str | None:
         on = qnorm(o)
         if on and (on.startswith(v) or v.startswith(on) or (len(v) > 3 and v in on)):
             return o
-    best = difflib.get_close_matches(str(value), opts, n=1, cutoff=0.6)
+    best = difflib.get_close_matches(str(value), opts, n=1, cutoff=0.9)  # only near-identical spellings
     if best:
         return best[0]
     if pol:
