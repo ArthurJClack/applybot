@@ -62,7 +62,7 @@ class Field:
 
 # (category, regex) - order matters, first match wins
 RULES: list[tuple[str, str]] = [
-    ("consent", r"\b(i (agree|acknowledge|consent|certify|confirm|understand|attest))|i am certifying|i hereby certify|i hereby affirm|privacy (policy|notice)|terms (and|&) conditions|consent to"),
+    ("consent", r"\b(i (agree|acknowledge|consent|certify|confirm|understand|attest))|i am certifying|i hereby certify|i hereby affirm|review and acknowledge|privacy acknowledgement|privacy (policy|notice)|terms (and|&) conditions|consent to"),
     ("resume_file", r"\b(resume|r[eé]sum[eé]|cv)\b"),
     ("cover_letter", r"cover\s*letter"),
     ("transcript_file", r"transcript"),
@@ -78,7 +78,7 @@ RULES: list[tuple[str, str]] = [
     ("work_authorization.authorized_to_work", r"authori[sz]ed to work|eligible to work|legally (permitted|able|allowed)|right to work|work authori[sz]ation"),
     ("sensitive.over_18", r"(18|eighteen) years|at least 18|over the age|legal age"),
     ("sensitive.criminal_conviction", r"convict|felony|criminal|misdemeanor"),
-    ("sensitive.previously_employed_here", r"(previously|ever|formerly) (been )?(employed|worked)|former employee|worked (for|at) .* before|current employee of|^have you (ever )?worked (at|for)\b"),
+    ("sensitive.previously_employed_here", r"(previously|ever|formerly) (been )?(employed|worked)|former employee|worked (for|at) .* before|current employee of|^have you (ever )?worked (at|for)\b|current or former .{0,40}employee"),
     ("sensitive.non_compete", r"non-?compete|restrictive covenant|non-?solicit"),
     ("sensitive.background_check_ok", r"background check"),
     ("sensitive.drug_test_ok", r"drug (test|screen)"),
@@ -109,13 +109,13 @@ RULES: list[tuple[str, str]] = [
     ("major", r"major|field of study|discipline|area of study|concentration"),
     ("gpa", r"\bgpa\b|grade point"),
     ("basics.current_company", r"current (company|employer)|most recent (company|employer)|candidate'?s company"),
-    ("basics.current_title", r"current (title|role|position)|most recent (title|role)"),
+    ("basics.current_title", r"current (title|role|position)|most recent (title|role)|current or previous (job )?title|previous job title"),
     ("basics.years_experience", r"years of (professional )?experience|how many years"),
     ("logistics.start_date", r"start date|when can you start|available to start|availability"),
     ("logistics.salary_expectation", r"salary|compensation|pay (expectation|requirement)|desired pay"),
     ("logistics.notice_period", r"notice period"),
     ("logistics.in_person_ok", r"in[- ]person|on[- ]?site|in[- ]office|hybrid|commute"),
-    ("logistics.how_did_you_hear", r"how did you (hear|find|learn)|where did you (hear|find|see)|referral source|^source$|what brought you to"),
+    ("logistics.how_did_you_hear", r"how did you (hear|find|learn)|where did you (hear|find|see)|referral source|^source$|what brought you to|how you heard about"),
 ]
 
 SENSITIVE_PREFIXES = ("eeo.", "sensitive.", "work_authorization.")
@@ -128,7 +128,7 @@ OPEN_ENDED_RE = re.compile(
 LONG_OK = {"cover_letter", "resume_file", "transcript_file", "consent"}
 
 
-_NOT_OPEN = re.compile(r"how did you (hear|find|learn|come across)|what brought you to", re.I)
+_NOT_OPEN = re.compile(r"how did you (hear|find|learn|come across)|what brought you to|how you heard about", re.I)
 
 
 def is_open_ended(question: str, kind: str = "") -> bool:
@@ -213,10 +213,40 @@ def choose_option(value: str, options: list[str]) -> str | None:
                          if _polarity(o) is None), key=lambda x: -x[0])
         if scored and scored[0][0] >= 2 and (len(scored) == 1 or scored[1][0] < scored[0][0]):
             return scored[0][1]
+    # GPA-style numeric answer vs range options ("3.5 - 4.0")
+    if re.fullmatch(r"\d+(\.\d+)?", str(value).strip()):
+        x = float(value)
+        for o in opts:
+            m = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|\u2013|to)\s*(\d+(?:\.\d+)?)", o)
+            if m and float(m.group(1)) <= x <= float(m.group(2)):
+                return o
+    # "June 2027" vs term options ("Spring 2027", "Summer 2027")
+    md = re.fullmatch(r"([a-z]+) ((?:19|20)\d{2})", v)
+    if md and md.group(1)[:3] in _MONTHS:
+        mo, yr = _MONTHS[md.group(1)[:3]], md.group(2)
+        terms = ["winter"] if mo <= 2 else ["spring", "summer"] if mo <= 6 else ["summer", "fall"] if mo <= 8 else ["fall"]
+        for t in terms:
+            for o in opts:
+                on = qnorm(o)
+                if t in on and yr in on:
+                    return o
     return None
 
 
-YES_NO_Q = re.compile(r"^\s*(are|will|do|did|have|has|is|can|were|would)\s+you\b", re.I)
+_NON_BOOLEAN = {"school", "degree", "major", "gpa", "logistics.start_date", "location", "basics.city", "basics.state",
+                "basics.country", "basics.address", "basics.zip", "grad_month", "grad_year", "edu_start_month",
+                "edu_start_year", "logistics.salary_expectation", "basics.current_company", "basics.current_title",
+                "logistics.how_did_you_hear", "first_name", "last_name", "full_name", "email", "phone"}
+
+
+def _strip_lead(q: str) -> str:
+    """Drop a leading context sentence: 'The start date is in 2027. Are you able to...' -> 'Are you able to...'."""
+    q = q or ""
+    m = re.search(r"(?:^|[.?!:]\s+)((?:are|will|do|did|have|has|is|can|were|would)\s+you\b.*)$", q, re.I)
+    return m.group(1) if m else q
+
+
+YES_NO_Q = re.compile(r"^\s*(?:by [^,?]{1,30},\s*)?(are|will|do|did|have|has|is|can|were|would)\s+you\b", re.I)
 
 
 def _degree_level(degree: str) -> str:
@@ -320,6 +350,8 @@ class AnswerBank:
             return None, None
         if cat == "graduation" and YES_NO_Q.match(field.question or ""):
             return _graduation_yes_no(field.question, self._profile_value("graduation")), cat
+        if YES_NO_Q.match(_strip_lead(field.question)) and cat in _NON_BOOLEAN:
+            return None, cat
         if cat == "degree" and field.kind in ("combobox", "select", "radio"):
             return (self._profile_value("degree_level") or self._profile_value("degree") or None), cat
         if cat in ("resume_file", "transcript_file"):

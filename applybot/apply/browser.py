@@ -456,6 +456,11 @@ class Applicant:
                     unresolved.append(f.question)
                 continue
             ok = self._fill_one(frame, item, r.value, files)
+            if not ok and r.category == "logistics.how_did_you_hear" and item["kind"] != "text":
+                for alt in ("Job board", "Job Board", "Online", "Internet", "Website", "Other"):
+                    if self._fill_one(frame, item, alt, files):
+                        ok, r = True, Resolution(alt, r.source, r.category)
+                        break
             answers_log[f.question] = f"{r.value}  [{r.source}]" + ("" if ok else "  (NOT FILLED)")
             if not ok and (f.required or sensitive):  # never submit with a legal/EEO answer we couldn't place
                 unresolved.append(f.question)
