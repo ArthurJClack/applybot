@@ -225,7 +225,19 @@ def _run_applications(job_ids: list[str], mode: str):
         _run_applications_inner(job_ids, mode)
 
 
+def _reload_code():
+    """Pick up code fixes without restarting the Claude desktop app (the MCP server process lives on)."""
+    import importlib
+    import applybot.answers, applybot.render, applybot.tailor, applybot.apply.browser, applybot.pipeline
+    for mod in (applybot.answers, applybot.render, applybot.tailor, applybot.apply.browser, applybot.pipeline):
+        importlib.reload(mod)
+
+
 def _run_applications_inner(job_ids: list[str], mode: str):
+    try:
+        _reload_code()
+    except Exception as e:
+        _RUN["log"].append(f"code reload failed ({e}); using the loaded version")
     from applybot.pipeline import apply_jobs
     cfg, llm, db = _ctx()
     try:

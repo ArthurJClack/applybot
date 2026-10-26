@@ -282,14 +282,32 @@ class Applicant:
                 return ok
             if kind == "checkbox":
                 want = str(value).strip().lower() in ("yes", "true", "y", "1", "checked", "agree", "i agree")
+                el = loc.first
+                if not el.is_visible():
+                    # Ashby-style yes/no: a hidden checkbox driven by "Yes" / "No" buttons next to it
+                    if el.evaluate(self._YESNO_JS, "yes" if want else "no"):
+                        return True
                 if want:
-                    loc.first.check(force=True)
+                    el.check(force=True)
                 return True
             if kind == "combobox":
                 return self._fill_combobox(frame, loc.first, str(value), item)
         except Exception as e:
             self.log(f"[yellow]  could not fill '{item.get('label')}' ({kind}): {str(e).splitlines()[0][:120]}[/yellow]")
         return False
+
+    _YESNO_JS = """(el, want) => {
+        let p = el.parentElement;
+        for (let i = 0; i < 5 && p; i++, p = p.parentElement) {
+            const btns = Array.from(p.querySelectorAll('button')).filter(b => /^(yes|no)$/i.test((b.innerText || '').trim()));
+            if (btns.length >= 2) {
+                const b = btns.find(x => x.innerText.trim().toLowerCase() === want);
+                if (b) { b.click(); return true; }
+                return false;
+            }
+        }
+        return false;
+    }"""
 
     _COMBO_SHOWS_JS = """(el, want) => {
         const n = s => (s || '').replace(/\\s+/g, ' ').trim().toLowerCase();

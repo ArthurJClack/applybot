@@ -156,6 +156,10 @@ _DECLINE = ("decline", "prefer not", "not to answer", "do not want", "don t wish
             "not to disclose", "not to self identify")
 
 
+_ALIASES = {"male": ("man", "cisgender man", "cis man"), "female": ("woman", "cisgender woman", "cis woman"),
+            "man": ("male",), "woman": ("female",)}
+
+
 def _polarity(s: str) -> str | None:
     n = qnorm(s)
     if _NO_RE.match(n):
@@ -177,6 +181,10 @@ def choose_option(value: str, options: list[str]) -> str | None:
     for o in opts:
         if qnorm(o) == v:
             return o
+    for alias in _ALIASES.get(v, ()):  # "Male" -> "Man", "Female" -> "Woman"
+        for o in opts:
+            if qnorm(o) == alias or qnorm(o).startswith(alias + " "):
+                return o
     if any(w in v for w in _DECLINE):
         for o in opts:
             if any(w in qnorm(o) for w in _DECLINE):

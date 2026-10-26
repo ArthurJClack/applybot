@@ -107,3 +107,9 @@ def test_choose_option_word_overlap_is_safe():
     assert choose_option("I am not a protected veteran", vets) == "I am not a protected veteran"
     assert choose_option("Straight", ["Gay", "Heterosexual or straight", "Bisexual"]) == "Heterosexual or straight"
     assert not is_open_ended("How did you hear about us?")
+
+
+def test_gender_aliases():
+    from applybot.answers import choose_option
+    assert choose_option("Male", ["Man", "Woman", "Non-binary", "I prefer not to say"]) == "Man"
+    assert choose_option("Male", ["Male", "Female"]) == "Male"
