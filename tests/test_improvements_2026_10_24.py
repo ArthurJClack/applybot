@@ -113,3 +113,15 @@ def test_gender_aliases():
     from applybot.answers import choose_option
     assert choose_option("Male", ["Man", "Woman", "Non-binary", "I prefer not to say"]) == "Man"
     assert choose_option("Male", ["Male", "Female"]) == "Male"
+
+
+def test_gpa_and_country_safety():
+    from applybot.answers import choose_option, classify
+    assert classify("GPA (Undergraduate)*") == "gpa"
+    assert classify("GPA (Graduate)*") is None and classify("GPA (Doctorate)*") is None
+    assert classify("Expected graduation date*") == "graduation"
+    assert choose_option("United States", ["United Arab Emirates", "United Kingdom"]) is None
+    assert choose_option("United States", ["United Kingdom", "USA"]) == "USA"
+    assert classify("What are your preferred gender pronouns? (He/Him/His)") == "basics.pronouns"
+    assert choose_option("3.8", ["3.75+", "3.4 - 3.70", "Below 3.4"]) == "3.75+"
+    assert choose_option("June 2027", ["January to March 2027", "April to July 2027"]) == "April to July 2027"
