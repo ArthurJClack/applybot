@@ -44,10 +44,14 @@ def prepare_documents(cfg: Config, profile: dict, llm: LLM, job: dict, db: DB | 
                       log: Callable[[str], None] = print) -> dict:
     job = ensure_description(db, job)
     out = job_dir(cfg, job)
-    resume, method = tailor_resume(profile, job, llm)
-    formats = cfg["apply"].get("resume_formats") or ["pdf"]
     first, last = split_name(profile)
     who = slug(f"{first}_{last}", 40) if first else "Candidate"
+    reused = reuse_documents(out, who)
+    if reused:
+        log(f"  documents (tailored by Claude, reused) -> {out}")
+        return reused
+    resume, method = tailor_resume(profile, job, llm)
+    formats = cfg["apply"].get("resume_formats") or ["pdf"]
     base = f"{who}_Resume"
     paths: dict[str, Path] = {}
     if "pdf" in formats:
@@ -72,6 +76,29 @@ def prepare_documents(cfg: Config, profile: dict, llm: LLM, job: dict, db: DB | 
                                                   out / f"{who}_Cover_Letter.pdf")
     log(f"  documents ({method}) -> {out}")
     return {"dir": out, "paths": paths, "resume": resume, "resume_md": md, "cover_letter": letter, "method": method}
+
+
+CLAUDE_MARK = "tailored_by_claude.json"
+
+
+def reuse_documents(out: Path, who: str) -> dict | None:
+    """Documents written by Claude through the MCP tailor_resume tool are kept as-is when applying."""
+    if not (out / CLAUDE_MARK).exists() or not (out / "resume.json").exists():
+        return None
+    paths: dict[str, Path] = {}
+    for key, name in (("resume", f"{who}_Resume.pdf"), ("resume_docx", f"{who}_Resume.docx"),
+                      ("cover_letter", f"{who}_Cover_Letter.pdf")):
+        if (out / name).exists():
+            paths[key] = out / name
+    if "resume" not in paths and "resume_docx" in paths:
+        paths["resume"] = paths["resume_docx"]
+    if "resume" not in paths:
+        return None
+    letter_txt = out / "cover_letter.txt"
+    md = out / "resume.md"
+    return {"dir": out, "paths": paths, "resume": json.loads((out / "resume.json").read_text(encoding="utf-8")),
+            "resume_md": md.read_text(encoding="utf-8") if md.exists() else "",
+            "cover_letter": letter_txt.read_text(encoding="utf-8") if letter_txt.exists() else "", "method": "claude"}
 
 
 def manual_job(url: str, company: str = "", title: str = "", description: str = "") -> Job:

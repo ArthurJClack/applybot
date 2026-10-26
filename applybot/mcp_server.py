@@ -151,7 +151,7 @@ def set_score(job_id: str, score: float, reason: str) -> dict:
 
 @_tool
 def tailor_resume(job_id: str, plan: dict) -> dict:
-    """Create the tailored resume + cover letter for a job from YOUR plan. plan = {"summary": str,
+    """Create the tailored resume + cover letter for a job from YOUR plan. apply_to_jobs reuses these files. plan = {"summary": str,
     "experience": [{"ref": int, "bullets": [str]}], "projects": [...], "leadership": [...],
     "skills": [{"category": str, "items": [str]}], "cover_letter": str (optional plain text)}.
     'ref' is the zero-based index into get_profile's arrays. Rephrase to match the posting's wording ONLY where it is
@@ -182,12 +182,17 @@ def tailor_resume(job_id: str, plan: dict) -> dict:
         (out / "resume.json").write_text(json.dumps(resume, indent=2), encoding="utf-8")
         (out / "job.json").write_text(json.dumps(job, indent=2, default=str), encoding="utf-8")
         letter = (plan or {}).get("cover_letter")
+        for stale in ("cover_letter.txt", f"{who}_Cover_Letter.pdf"):  # don't reuse an old generic letter
+            (out / stale).unlink(missing_ok=True)
         if isinstance(letter, str) and letter.strip():
             (out / "cover_letter.txt").write_text(letter.strip(), encoding="utf-8")
             files.append(str(render_letter_pdf(letter.strip(), profile.get("contact", {}),
                                                out / f"{who}_Cover_Letter.pdf")))
         report = keyword_report(resume, profile, job)
         (out / "ats_report.txt").write_text(format_report(report), encoding="utf-8")
+        from applybot.pipeline import CLAUDE_MARK
+        (out / CLAUDE_MARK).write_text(json.dumps({"plan": plan, "at": time.strftime("%Y-%m-%d %H:%M")}, indent=2),
+                                       encoding="utf-8")
         if job["status"] in ("new", "matched"):
             db.update_job(job["id"], status="tailored")
         return {"folder": str(out), "files": files, "ats": report}
