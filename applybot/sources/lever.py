@@ -4,17 +4,22 @@ from __future__ import annotations
 import httpx
 
 from applybot.models import Job
+from applybot.sources.pnw_boards import boards_for
 from applybot.sources.ashby import company_name
 from applybot.sources import guess_job_type, html_to_text, iso_from_epoch, is_remote
 
 
 def fetch(cfg: dict, search: dict, http: httpx.Client) -> list[Job]:
     jobs: list[Job] = []
-    for company in cfg.get("companies", []):
-        r = http.get(f"https://api.lever.co/v0/postings/{company}", params={"mode": "json"})
-        if r.status_code == 404:
-            continue
-        r.raise_for_status()
+    for company in boards_for("lever", cfg):
+        try:
+            r = http.get(f"https://api.lever.co/v0/postings/{company}", params={"mode": "json"})
+            if r.status_code == 404:
+                continue
+            r.raise_for_status()
+            r.json()
+        except (httpx.HTTPError, ValueError):
+            continue  # one bad or retired board must not sink the whole source
         for item in r.json():
             cats = item.get("categories") or {}
             loc = cats.get("location") or ", ".join(cats.get("allLocations") or [])
