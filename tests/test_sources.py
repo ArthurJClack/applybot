@@ -61,3 +61,27 @@ def test_remotive_and_remoteok():
                                  "description": "x", "date": "2026-10-01", "tags": ["dev"]}]
     jobs = boards.fetch_remoteok({}, {}, client({"remoteok.com": rok}))
     assert len(jobs) == 1 and jobs[0].job_type == "internship"
+
+
+def test_usajobs():
+    from applybot.sources import usajobs
+    payload = {"SearchResult": {"SearchResultItems": [{"MatchedObjectDescriptor": {
+        "PositionID": "IT-26-001", "PositionTitle": "Student Trainee (Information Technology)",
+        "PositionURI": "https://www.usajobs.gov/job/1", "ApplyURI": ["https://www.usajobs.gov/job/1/apply"],
+        "PositionLocationDisplay": "Tacoma, Washington", "OrganizationName": "Department of the Army",
+        "DepartmentName": "Department of Defense", "PublicationStartDate": "2026-11-01T00:00:00",
+        "QualificationSummary": "Enrolled student.", "PositionSchedule": [{"Name": "Full-time"}],
+        "PositionRemuneration": [{"MinimumRange": "40000", "MaximumRange": "52000", "Description": "Per Year"}],
+        "UserArea": {"Details": {"JobSummary": "IT intern", "HiringPath": ["student"]}}}}]}}
+    jobs = usajobs.fetch({"api_key": "k", "email": "a@b.c", "keywords": ["it"]}, {}, client({"api/search": payload}))
+    assert len(jobs) == 1
+    j = jobs[0]
+    assert j.company == "Department of the Army" and j.location == "Tacoma, Washington"
+    assert j.apply_url.endswith("/apply") and j.extra["requires_login"]
+
+
+def test_usajobs_needs_key():
+    import pytest
+    from applybot.sources import usajobs
+    with pytest.raises(ValueError):
+        usajobs.fetch({}, {}, client({}))
