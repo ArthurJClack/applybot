@@ -46,6 +46,8 @@ DEFAULTS: dict[str, Any] = {
             "remotive": {"enabled": True},
             "remoteok": {"enabled": False},
             "arbeitnow": {"enabled": False},
+            "usajobs": {"enabled": False, "api_key": "${USAJOBS_API_KEY}", "email": "${USAJOBS_EMAIL}",
+                        "location": "", "students_only": False, "remote_only": False},
             "jobspy": {
                 "enabled": False,
                 "sites": ["indeed", "linkedin", "glassdoor", "zip_recruiter"],

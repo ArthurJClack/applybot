@@ -52,7 +52,7 @@ def is_remote(*texts: str) -> bool:
 
 
 def registry() -> dict[str, Callable]:
-    from applybot.sources import ashby, boards, greenhouse, jobspy_source, lever, simplify
+    from applybot.sources import ashby, boards, greenhouse, jobspy_source, lever, simplify, usajobs
     return {
         "simplify": simplify.fetch,
         "greenhouse": greenhouse.fetch,
@@ -62,6 +62,7 @@ def registry() -> dict[str, Callable]:
         "remoteok": boards.fetch_remoteok,
         "arbeitnow": boards.fetch_arbeitnow,
         "jobspy": jobspy_source.fetch,
+        "usajobs": usajobs.fetch,
     }
 
 
