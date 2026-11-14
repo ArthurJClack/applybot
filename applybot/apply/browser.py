@@ -11,12 +11,14 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 from typing import Callable
 
 from applybot.answers import (SENSITIVE_PREFIXES, AnswerBank, Field, Resolution, choose_option, classify,
                               resolve_fields)
 from applybot.llm import LLM
+from applybot.mailcodes import fill_email_code, now_utc
 
 SCAN_JS = "\n".join(ln for ln in (Path(__file__).with_name("scan_form.js")).read_text(encoding="utf-8").splitlines()
                     if not ln.lstrip().startswith("//"))
@@ -620,10 +622,18 @@ class Applicant:
             return self._finish(page, result, "needs_review", "unanswered required: " + "; ".join(unresolved[:5]),
                                 shot_dir, answers)
 
+        clicked_at = now_utc() - timedelta(seconds=30)
         submit.click()
         self._settle(page, 3000)
         page = self._latest_page(page)
         text = self._page_text(page)
+        if not CONFIRM_RE.search(text) and fill_email_code(page, self.cfg, clicked_at, self.log):
+            again = self._find_button(page, SUBMIT_RE)  # the same form, now with the emailed code filled in
+            if again:
+                again.click()
+                self._settle(page, 3000)
+                page = self._latest_page(page)
+                text = self._page_text(page)
         if CONFIRM_RE.search(text):
             return self._finish(page, result, "applied", "confirmation detected", shot_dir, answers)
         errors = self._errors(page)
