@@ -68,6 +68,8 @@ DEFAULTS: dict[str, Any] = {
         "browser_profile_dir": ".browser_profile",
         "output_dir": "output",
     },
+    "mail": {"enabled": False, "imap_host": "imap.gmail.com", "user": "${APPLYBOT_MAIL_USER}",
+             "app_password": "${APPLYBOT_MAIL_APP_PASSWORD}", "wait_seconds": 90},
     "database": "applybot.db",
 }
 

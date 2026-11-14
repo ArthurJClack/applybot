@@ -74,3 +74,13 @@ apply:
   output_dir: output
 
 database: applybot.db
+
+# Read emailed verification codes (Greenhouse "security code" etc.) from your inbox and type them in.
+# Read-only. Gmail: create an app password at https://myaccount.google.com/apppasswords and put
+# APPLYBOT_MAIL_USER / APPLYBOT_MAIL_APP_PASSWORD in .env. Test with: python main.py mail-code
+mail:
+  enabled: false
+  imap_host: imap.gmail.com
+  user: ${APPLYBOT_MAIL_USER}
+  app_password: ${APPLYBOT_MAIL_APP_PASSWORD}
+  wait_seconds: 90
