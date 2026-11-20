@@ -289,6 +289,25 @@ def cmd_ask(args):
         return 1
 
 
+def cmd_mail_code(args):
+    """Check that ApplyBot can read verification codes from your inbox."""
+    from datetime import timedelta
+
+    from applybot.mailcodes import MailCodes, now_utc
+    cfg = load_config(args.config)
+    mail = MailCodes(cfg, log)
+    if not mail.ready:
+        log("[yellow]mail is not set up: set mail.enabled: true in config.yaml and add APPLYBOT_MAIL_USER / "
+            "APPLYBOT_MAIL_APP_PASSWORD to .env[/yellow]")
+        return 1
+    try:
+        code = mail.latest_code(now_utc() - timedelta(minutes=args.minutes))
+    except Exception as e:
+        log(f"[red]couldn't read the inbox: {e}[/red]")
+        return 1
+    log(f"inbox OK. Newest code from the last {args.minutes} min: {code or 'none found'}")
+
+
 def cmd_ui(args):
     from applybot.ui.launcher import run
     return run(Path(args.config), port=args.port, open_window=not args.no_window)
@@ -373,6 +392,10 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("ask", help="send a prompt to the configured AI (connectivity test)")
     s.add_argument("prompt", nargs="+")
     s.set_defaults(fn=cmd_ask)
+
+    s = sub.add_parser("mail-code", help="test reading emailed verification codes from your inbox")
+    s.add_argument("--minutes", type=int, default=30, help="how far back to look (default: 30)")
+    s.set_defaults(fn=cmd_mail_code)
 
     s = sub.add_parser("ui", help="open the desktop app (default when no command is given)")
     s.add_argument("--port", type=int, default=0, help="port for the local UI server (default: automatic)")
