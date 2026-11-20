@@ -46,6 +46,8 @@ DEFAULTS: dict[str, Any] = {
             "remotive": {"enabled": True},
             "remoteok": {"enabled": False},
             "arbeitnow": {"enabled": False},
+            "usajobs": {"enabled": False, "api_key": "${USAJOBS_API_KEY}", "email": "${USAJOBS_EMAIL}",
+                        "location": "", "students_only": False, "remote_only": False},
             "jobspy": {
                 "enabled": False,
                 "sites": ["indeed", "linkedin", "glassdoor", "zip_recruiter"],
@@ -68,6 +70,7 @@ DEFAULTS: dict[str, Any] = {
         "browser_profile_dir": ".browser_profile",
         "output_dir": "output",
     },
+    "live": {"port": 8765},
     "mail": {"enabled": False, "imap_host": "imap.gmail.com", "user": "${APPLYBOT_MAIL_USER}",
              "app_password": "${APPLYBOT_MAIL_APP_PASSWORD}", "wait_seconds": 90},
     "database": "applybot.db",
