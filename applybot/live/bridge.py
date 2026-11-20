@@ -68,6 +68,7 @@ class LiveBridge:
         self.last_seen = 0.0
         self.server: ThreadingHTTPServer | None = None
         self.port = DEFAULT_PORT
+        self.auto_submit: bool | None = None    # None = use config live.auto_submit
 
     # ---- helpers -------------------------------------------------------------------------------------------
     def _note(self, msg: str):
@@ -144,8 +145,9 @@ class LiveBridge:
             if job and self.expected == job["id"]:
                 self.expected = None
         self._note(f"form on {urlparse(url).netloc}: {len(fill)} to fill, {len(unresolved)} need an answer")
+        auto = self.auto_submit if self.auto_submit is not None else bool((cfg.get("live") or {}).get("auto_submit"))
         return {"job": job and {"id": job["id"], "company": job["company"], "title": job["title"]},
-                "fill": fill, "unresolved": unresolved}
+                "fill": fill, "unresolved": unresolved, "auto_submit": auto and bool(job)}
 
     def state(self, tab: str, data: dict) -> dict:
         """The extension reports current field values (after filling or after you typed something)."""
@@ -228,6 +230,18 @@ class LiveBridge:
         if url:
             self._open(url)
         return {"opened": url, "queued": len(self.queue)}
+
+    def add_jobs(self, job_ids: list[str], front: bool = False) -> dict:
+        """Add jobs to the running queue (no new window): at the end, or next in line with front=True.
+        Opens the first one only if nothing is open yet."""
+        new = list(dict.fromkeys(job_ids))
+        with self.lock:
+            rest = [j for j in self.queue if j not in new]
+            self.queue = new + rest if front else rest + [j for j in new if j not in rest]
+            idle = not self.pages
+        if idle:
+            return self.open_jobs(list(self.queue))
+        return {"queued": len(self.queue), "opened": None}
 
     def current(self) -> dict | None:
         """The form that reported most recently."""

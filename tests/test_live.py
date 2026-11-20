@@ -170,3 +170,64 @@ def test_content_script_fills_a_real_page(live):
         page.wait_for_function("document.querySelector('#applybot-live-panel') && /Applied/.test(document.querySelector('#applybot-live-panel').innerText)")
         browser.close()
     assert t["db"].get_job(t["job"]["id"])["status"] == "applied"
+
+
+SIMPLE = """<!doctype html><html><body><form onsubmit="return false">
+ <label for="fn">First Name *</label><input id="fn" required>
+ <label for="em">Email *</label><input id="em" type="email" required>
+ <button type="button" id="go" onclick="document.body.innerHTML='<h1>Thank you for applying!</h1>'">Submit application</button>
+</form></body></html>"""
+
+
+def _run_page(live, html, until):
+    pw = pytest.importorskip("playwright.sync_api")
+
+    def send(msg):
+        kind, data = msg["type"], msg.get("data", {})
+        if kind == "commands":
+            return live.take_commands("1")
+        if kind == "file":
+            return {"ok": False}
+        return getattr(live, kind)("1", data)
+
+    with pw.sync_playwright() as p:
+        try:
+            browser = p.chromium.launch()
+        except Exception as e:
+            pytest.skip(f"no browser: {e}")
+        page = browser.new_page()
+        page.route(URL, lambda r: r.fulfill(body=html, content_type="text/html"))
+        page.goto(URL)
+        page.expose_function("__applybotSend", send)
+        page.add_script_tag(path=str(EXT / "content.js"))
+        page.wait_for_function("window.__applybotReady === true")
+        out = page.evaluate(until)
+        browser.close()
+        return out
+
+
+def test_auto_submit_only_when_complete(live):
+    live.auto_submit = True
+    poll_until_applied = """async () => { for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 250));
+        await window.__applybotPoll(); if (/Thank you/.test(document.body.innerText)) return true; } return false; }"""
+    assert _run_page(live, SIMPLE, poll_until_applied) is True
+    assert live.test["db"].get_job(live.test["job"]["id"])["status"] == "applied"
+
+
+def test_auto_submit_waits_for_missing_answers_and_captcha(live):
+    live.auto_submit = True
+    wait = "async () => { await new Promise(r => setTimeout(r, 7000)); return document.querySelector('#go') !== null; }"
+    assert _run_page(live, FORM, wait) is True                       # a required answer is missing: no submit
+    captcha = SIMPLE.replace("<form", '<iframe src="https://www.google.com/recaptcha/api2/anchor"></iframe><form')
+    assert _run_page(live, captcha, wait) is True                   # bot check on the page: no submit
+
+
+def test_add_jobs_appends_without_reopening(live):
+    t = live.test
+    live.open_jobs([t["job"]["id"]])
+    live.page("7", {"url": URL, "fields": fields()})
+    out = live.add_jobs([t["next"].id, t["next"].id])
+    assert out == {"queued": 1, "opened": None} and t["opened"] == [URL]
+    live.queue = ["a", "b"]
+    live.add_jobs(["c", "a"], front=True)
+    assert live.queue == ["c", "a", "b"]

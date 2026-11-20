@@ -276,6 +276,42 @@
     }
     await report();
     window.__applybotReady = true;
+    autoSubmit = !!resp.auto_submit;
+    maybeAutoSubmit();
+  }
+
+  // ---- auto-submit: only when nothing required is empty and no bot check is on the page ----
+  let autoSubmit = false, countdown = null, cancelled = false;
+  const CAPTCHA_SEL = 'iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="turnstile"], iframe[title*="captcha" i], .g-recaptcha, .h-captcha, .cf-turnstile';
+
+  function submitButton() {
+    return [...document.querySelectorAll('button, input[type="submit"]')]
+      .find((b) => visible(b) && !b.disabled && SUBMIT_RE.test(b.innerText || b.value || ""));
+  }
+
+  function maybeAutoSubmit() {
+    if (!autoSubmit || cancelled || countdown || done) return;
+    const btn = submitButton();
+    if (!btn || unresolved.length || document.querySelector(CAPTCHA_SEL)) return;
+    let left = 5;
+    const tick = () => {
+      if (cancelled || unresolved.length) { clearInterval(countdown); countdown = null; draw(); return; }
+      if (left <= 0) {
+        clearInterval(countdown); countdown = null;
+        draw("Submitting…");
+        btn.click();
+        return;
+      }
+      draw("All filled - submitting in " + left + "s");
+      const stop = document.createElement("button");
+      stop.textContent = "Cancel auto-submit";
+      stop.style.cssText = "margin-top:6px;padding:4px 10px;border-radius:6px;border:0;background:#e03131;color:#fff;cursor:pointer";
+      stop.addEventListener("click", () => { cancelled = true; });
+      panel.appendChild(stop);
+      left -= 1;
+    };
+    tick();
+    countdown = setInterval(tick, 1000);
   }
 
   async function report() {
@@ -299,6 +335,7 @@
       if (await setValue(c.key, c.value)) filled[c.key] = c.value;
     }
     await report();
+    maybeAutoSubmit();
   }
 
   let done = false;

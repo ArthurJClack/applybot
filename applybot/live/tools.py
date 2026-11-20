@@ -69,3 +69,19 @@ def register(tool: Callable, context: Callable[[], tuple]) -> None:
         a couple of seconds. Password and file fields are refused. Legal, EEO, work-authorization and consent
         answers are refused unless the user gave that exact answer and you pass confirmed_by_user=True."""
         return _up().set_fields(values, confirmed_by_user)
+
+    @tool
+    def live_add(job_ids: list[str], front: bool = False) -> dict:
+        """Add jobs to the running live-apply queue without opening another window. front=True puts them next in
+        line (in the order given) ahead of what is already queued; otherwise they go at the end."""
+        return _up().add_jobs(job_ids, front)
+
+    @tool
+    def live_auto_submit(on: bool) -> dict:
+        """Turn auto-submit on or off for live apply. When on, a form is submitted automatically ONLY when every
+        required field is filled and there is no CAPTCHA, after a 5-second countdown the user can cancel. Only turn
+        it on when the user has asked for ApplyBot to submit for them."""
+        b = _up()
+        b.auto_submit = bool(on)
+        return {"auto_submit": b.auto_submit}
+
