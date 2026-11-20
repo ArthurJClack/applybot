@@ -179,7 +179,7 @@ SIMPLE = """<!doctype html><html><body><form onsubmit="return false">
 </form></body></html>"""
 
 
-def _run_page(live, html, until):
+def _run_page(live, html, until, files=False):
     pw = pytest.importorskip("playwright.sync_api")
 
     def send(msg):
@@ -187,7 +187,7 @@ def _run_page(live, html, until):
         if kind == "commands":
             return live.take_commands("1")
         if kind == "file":
-            return {"ok": False}
+            return {"ok": True, "bytes": [37, 80, 68, 70], "name": "Arthur_Clack_Resume.pdf"} if files else {"ok": False}
         return getattr(live, kind)("1", data)
 
     with pw.sync_playwright() as p:
@@ -303,3 +303,13 @@ def test_extension_reload_flag_is_handed_out_once(live):
     live.control("0", {"action": "reload_extension"})
     get = lambda: json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/live/ping?ext=1").read())
     assert get()["reload"] is True and get()["reload"] is False
+
+
+def test_auto_submit_when_site_clears_the_file_input_after_upload(live):
+    live.auto_submit = True
+    gh = SIMPLE.replace('<button', '<div><label for="cv">Resume/CV *</label><input id="cv" type="file" required '
+                        'onchange="this.parentElement.querySelector(\'span\').textContent=this.files[0].name; this.value=\'\'">'
+                        '<span></span></div><button')
+    poll = """async () => { for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 250));
+        await window.__applybotPoll(); if (/Thank you/.test(document.body.innerText)) return true; } return false; }"""
+    assert _run_page(live, gh, poll, files=True) is True

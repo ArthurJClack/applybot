@@ -127,7 +127,7 @@
         f.options = [...el.options].map((o) => clean(o.text)).filter(Boolean);
         f.value = el.selectedIndex > 0 || (el.value && el.selectedIndex === 0 && el.options[0].value) ? clean(el.options[el.selectedIndex].text) : "";
       } else if (kind === "file") {
-        f.value = el.files && el.files.length ? el.files[0].name : "";
+        f.value = el.files && el.files.length ? el.files[0].name : uploadedName(el) || (filled[key] ? String(filled[key]) : "");
       } else if (kind === "combobox") {
         f.value = comboValue(el);
       } else {
@@ -249,6 +249,16 @@
     typeInto(el, value);
     fire(el, ["blur"]);
     return true;
+  }
+
+  // Greenhouse / Lever upload the file straight away and clear the <input>; the name then shows next to it.
+  function uploadedName(el) {
+    let box = el.parentElement;
+    for (let i = 0; box && i < 4; i++, box = box.parentElement) {
+      const m = (box.innerText || "").match(/[^\s\/\\]+\.(pdf|docx?|rtf|txt|odt)\b/i);
+      if (m) return m[0];
+    }
+    return "";
   }
 
   async function attach(key, path) {
