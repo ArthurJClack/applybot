@@ -123,7 +123,10 @@
       || options.find((o) => norm(o.text).includes(v) || (norm(o.text) && v.includes(norm(o.text))));
   }
 
-  const comboShell = (el) => el.closest('[class*="select-shell"], [class*="-container"], [role="group"]') || el.parentElement;
+  function comboShell(el) {   // the widget around a react-select search box: its control plus the chosen value
+    const control = el.closest('[class*="__control"], [class*="-control"]');
+    return el.closest('[class*="select-shell"]') || (control && control.parentElement) || el.parentElement;
+  }
 
   function comboValue(el) {
     const shell = comboShell(el);
