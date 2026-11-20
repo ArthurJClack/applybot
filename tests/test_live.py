@@ -222,6 +222,15 @@ def test_auto_submit_waits_for_missing_answers_and_captcha(live):
     assert _run_page(live, captcha, wait) is True                   # bot check on the page: no submit
 
 
+def test_passive_recaptcha_badge_does_not_block_auto_submit(live):
+    live.auto_submit = True
+    badge = SIMPLE.replace("<form", '<div class="grecaptcha-badge"><iframe src="https://www.google.com/recaptcha/api2/'
+                                    'anchor?size=invisible"></iframe></div><form')
+    poll = """async () => { for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 250));
+        await window.__applybotPoll(); if (/Thank you/.test(document.body.innerText)) return true; } return false; }"""
+    assert _run_page(live, badge, poll) is True
+
+
 def test_add_jobs_appends_without_reopening(live):
     t = live.test
     live.open_jobs([t["job"]["id"]])

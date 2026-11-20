@@ -434,6 +434,16 @@
   let autoSubmit = false, countdown = null, cancelled = false;
   const CAPTCHA_SEL = 'iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="turnstile"], iframe[title*="captcha" i], .g-recaptcha, .h-captcha, .cf-turnstile';
 
+  // A challenge you have to solve stops auto-submit. The passive reCAPTCHA badge that Ashby / Greenhouse put on
+  // every form (invisible, nothing to solve) does not.
+  function captchaShowing() {
+    return [...document.querySelectorAll(CAPTCHA_SEL)].some((el) => {
+      if (el.closest(".grecaptcha-badge") || /size=invisible/.test(el.src || "")) return false;
+      if (el.matches(".g-recaptcha") && el.getAttribute("data-size") === "invisible") return false;
+      return visible(el) && el.offsetWidth > 60 && el.offsetHeight > 30;
+    });
+  }
+
   function submitButton() {
     return [...document.querySelectorAll('button, input[type="submit"]')]
       .find((b) => visible(b) && !b.disabled && SUBMIT_RE.test(b.innerText || b.value || ""));
@@ -442,7 +452,7 @@
   function maybeAutoSubmit() {
     if (!autoSubmit || cancelled || countdown || done) return;
     const btn = submitButton();
-    if (!btn || unresolved.length || document.querySelector(CAPTCHA_SEL)) return;
+    if (!btn || unresolved.length || captchaShowing()) return;
     countdownLeft = 5;
     draw("Everything's filled.");
     countdown = setInterval(() => {
