@@ -297,6 +297,19 @@ def apply_progress() -> dict:
             if _RUN.get(k) not in (None, [])} | {"recent_log": _RUN.get("log", [])[-12:]}
 
 
+def _live_context():
+    cfg, llm, db = _ctx()
+    return cfg, _profile(cfg, llm), db
+
+
+def _register_live():
+    from applybot.live import tools as live_tools
+    live_tools.register(_tool, _live_context)
+
+
+_register_live()
+
+
 def main():
     mcp.run()
 
