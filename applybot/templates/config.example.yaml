@@ -46,6 +46,13 @@ search:
     remotive: {enabled: true}
     remoteok: {enabled: false}
     arbeitnow: {enabled: false}
+    usajobs:               # federal jobs; free key at https://developer.usajobs.gov/apirequest/
+      enabled: false
+      api_key: ${USAJOBS_API_KEY}
+      email: ${USAJOBS_EMAIL}   # the email you requested the key with
+      keywords: ["information technology", "software", "IT specialist", "computer"]
+      location: ""           # "" = nationwide, or e.g. "Washington"
+      students_only: false   # true = Pathways / student hiring only
     jobspy:                # LinkedIn/Indeed/Glassdoor/ZipRecruiter - needs `pip install python-jobspy`
       enabled: false
       sites: [indeed, linkedin]
