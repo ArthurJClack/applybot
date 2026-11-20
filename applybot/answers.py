@@ -544,6 +544,8 @@ def resolve_fields(fields: list[Field], bank: AnswerBank, profile: dict, job: di
             continue
         saved = bank.saved_answer(f.question) if f.kind != "file" else None
         val, cat = bank.rule_answer(f)
+        if saved and cat == "consent" and not bank.data.get("auto_consent"):
+            saved = None  # agreeing to terms is decided per form by you - never replayed, even if it got learned
         if saved:  # your explicit/learned answers always win
             out[f.key] = Resolution(saved, "saved", cat)
             continue
