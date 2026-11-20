@@ -1,0 +1,24 @@
+{
+  "manifest_version": 2,
+  "name": "ApplyBot Live",
+  "version": "0.1.0",
+  "description": "Fills job application forms in your own browser from your local ApplyBot. Never touches passwords.",
+  "browser_specific_settings": { "gecko": { "id": "applybot-live@arthurjclack.github.io", "strict_min_version": "109.0" } },
+  "permissions": ["http://127.0.0.1/*", "activeTab", "storage"],
+  "background": { "scripts": ["background.js"] },
+  "browser_action": { "default_title": "ApplyBot: fill this page" },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.greenhouse.io/*", "*://jobs.lever.co/*", "*://jobs.ashbyhq.com/*", "*://apply.workable.com/*",
+        "*://*.myworkdayjobs.com/*", "*://*.icims.com/*", "*://jobs.smartrecruiters.com/*",
+        "*://*.applytojob.com/*", "*://ats.rippling.com/*", "*://*.taleo.net/*", "*://*.oraclecloud.com/*",
+        "*://apply.careers.microsoft.com/*", "*://*.amazon.jobs/*", "*://amazon.jobs/*",
+        "*://www.usajobs.gov/*", "*://*.governmentjobs.com/*", "*://recruiting.paylocity.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}

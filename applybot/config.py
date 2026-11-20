@@ -68,6 +68,7 @@ DEFAULTS: dict[str, Any] = {
         "browser_profile_dir": ".browser_profile",
         "output_dir": "output",
     },
+    "live": {"port": 8765},
     "database": "applybot.db",
 }
 
