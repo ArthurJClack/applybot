@@ -295,3 +295,11 @@ def test_ashby_titles_required_and_yes_no_buttons(live):
     assert by["Do you reside in the U.S.?"]["kind"] == "radio" and by["Do you reside in the U.S.?"]["required"]
     assert by["Export control status"]["options"] == ["I am a U.S. person", "None of the above"]
     assert by["Where are you located?"]["required"]
+
+
+def test_extension_reload_flag_is_handed_out_once(live):
+    import urllib.request
+    port = live.start(0)
+    live.control("0", {"action": "reload_extension"})
+    get = lambda: json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/live/ping?ext=1").read())
+    assert get()["reload"] is True and get()["reload"] is False

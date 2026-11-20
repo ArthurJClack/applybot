@@ -71,6 +71,7 @@ class LiveBridge:
         self.server: ThreadingHTTPServer | None = None
         self.port = DEFAULT_PORT
         self.auto_submit: bool | None = None    # None = use config live.auto_submit
+        self.ext_reload = False                 # ask the Firefox extension to reload itself (picks up new code)
 
     # ---- helpers -------------------------------------------------------------------------------------------
     def _note(self, msg: str):
@@ -328,6 +329,10 @@ class LiveBridge:
             self.auto_submit = action == "resume"
             self._note("auto-submit " + ("on" if self.auto_submit else "paused"))
             return {"auto_submit": self.auto_submit}
+        if action == "reload_extension":
+            self.ext_reload = True
+            self._note("asked the extension to reload")
+            return {"reload": True}
         if action == "skip":
             page = self.current()
             url = self.next_url()
@@ -380,7 +385,11 @@ class LiveBridge:
                 if u.path == "/live/feed":
                     return self._json(bridge.feed())
                 if u.path == "/live/ping":
-                    return self._json({"ok": True, "app": "applybot-live", "queued": len(bridge.queue)})
+                    reload = False
+                    if q.get("ext"):  # the extension's background page checking in
+                        with bridge.lock:
+                            reload, bridge.ext_reload = bridge.ext_reload, False
+                    return self._json({"ok": True, "app": "applybot-live", "queued": len(bridge.queue), "reload": reload})
                 if u.path == "/live/commands":
                     return self._json(bridge.take_commands(q.get("tab", ["0"])[0]))
                 m = re.fullmatch(r"/live/file/([0-9a-f]+)/(\w+)", u.path)

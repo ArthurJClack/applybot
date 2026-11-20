@@ -86,6 +86,12 @@ def register(tool: Callable, context: Callable[[], tuple]) -> None:
         return {"auto_submit": b.auto_submit}
 
     @tool
+    def live_reload_extension() -> dict:
+        """Make the ApplyBot Live Firefox extension reload itself (to pick up new extension code after a git pull),
+        then reload the job tabs it was running on. Takes up to ~5 seconds to be picked up."""
+        return _up().control("0", {"action": "reload_extension"})
+
+    @tool
     def live_dashboard() -> dict:
         """Open the live dashboard (what ApplyBot is doing right now, the queue, and today's count) in a new window."""
         b = _up()

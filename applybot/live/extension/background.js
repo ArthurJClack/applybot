@@ -39,3 +39,26 @@ api.runtime.onMessage.addListener((msg, sender) => {
 api.browserAction.onClicked.addListener((tab) => {
   api.tabs.executeScript(tab.id, { file: "content.js", allFrames: true });
 });
+
+// Self-reload: ApplyBot can ask the extension to reload (new code after a git pull) - no about:debugging trip.
+const JOB_TABS = (api.runtime.getManifest().content_scripts || [])[0]?.matches || [];
+async function checkIn() {
+  try {
+    const res = await fetch((await base()) + "/live/ping?ext=1");
+    const j = await res.json();
+    if (j.reload) {
+      await api.storage.local.set({ reloadTabs: true });
+      api.runtime.reload();
+    }
+  } catch (e) { /* bridge not running - fine */ }
+}
+setInterval(checkIn, 4000);
+
+// After a self-reload, refresh the job tabs so they run the new content script.
+(async () => {
+  const got = await api.storage.local.get("reloadTabs");
+  if (!got.reloadTabs) return;
+  await api.storage.local.set({ reloadTabs: false });
+  const tabs = await api.tabs.query({ url: JOB_TABS });
+  for (const t of tabs) api.tabs.reload(t.id);
+})();
