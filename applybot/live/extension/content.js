@@ -57,6 +57,7 @@
       const type = (el.getAttribute("type") || el.tagName).toLowerCase();
       if (type === "password" || type === "hidden" || type === "submit" || type === "button" || type === "image") continue;
       if (el.disabled || (type !== "file" && !visible(el))) continue;
+      if (el.getAttribute("aria-hidden") === "true" && type !== "file") continue;   // e.g. react-select's shadow input
       if (type === "radio" || type === "checkbox") {
         const label = groupLabel(el);
         if (type === "checkbox" && !label) {   // a single stand-alone checkbox
@@ -80,7 +81,9 @@
         fields.get(g.key).els.push(el);
         continue;
       }
-      const key = keyFor(el), label = labelFor(el);
+      const key = keyFor(el);
+      // an upload button is usually labelled "Attach"; the group around it says what the file is
+      const label = type === "file" ? clean([groupLabel(el), el.id, el.name].join(" ")) || labelFor(el) : labelFor(el);
       let kind = type === "select" ? "select" : type === "textarea" ? "textarea" : type === "file" ? "file"
         : ["email", "tel", "url", "number", "date"].includes(type) ? type : "text";
       if (kind === "text" && (el.getAttribute("role") === "combobox" || el.getAttribute("aria-autocomplete"))) kind = "combobox";
@@ -90,6 +93,8 @@
         f.value = el.selectedIndex > 0 || (el.value && el.selectedIndex === 0 && el.options[0].value) ? clean(el.options[el.selectedIndex].text) : "";
       } else if (kind === "file") {
         f.value = el.files && el.files.length ? el.files[0].name : "";
+      } else if (kind === "combobox") {
+        f.value = comboValue(el);
       } else {
         f.value = el.value || "";
       }
@@ -118,16 +123,56 @@
       || options.find((o) => norm(o.text).includes(v) || (norm(o.text) && v.includes(norm(o.text))));
   }
 
+  const comboShell = (el) => el.closest('[class*="select-shell"], [class*="-container"], [role="group"]') || el.parentElement;
+
+  function comboValue(el) {
+    const shell = comboShell(el);
+    const picked = shell && [...shell.querySelectorAll('[class*="single-value"], [class*="singleValue"], [class*="multi-value__label"], [class*="multiValueLabel"]')];
+    if (picked && picked.length) return clean(picked.map((n) => n.innerText).join(", "));
+    const isReactSelect = shell && shell.querySelector('[class*="__control"], [class*="-control"]');
+    return isReactSelect ? "" : (el.value || "");   // text left in a react-select search box is not a selection
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function comboOptions(el) {
+    const id = el.getAttribute("aria-controls") || el.getAttribute("aria-owns");
+    const box = id && document.getElementById(id);
+    const found = box ? [...box.querySelectorAll('[role="option"]')] : [...document.querySelectorAll('[role="option"]')].filter(visible);
+    return found.map((o) => ({ el: o, text: o.innerText }));
+  }
+
+  async function openCombo(el) {
+    if (el.getAttribute("aria-expanded") === "true") return;
+    const control = el.closest('[class*="__control"], [class*="-control"]') || el;
+    const mouse = (t) => control.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, button: 0, view: window }));
+    if (document.activeElement === el) el.blur();
+    control.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
+    mouse("mousedown");
+    el.focus();
+    mouse("mouseup");
+    mouse("click");
+    for (let i = 0; i < 10 && el.getAttribute("aria-expanded") !== "true"; i++) await sleep(100);
+  }
+
   async function pickCombobox(el, value) {
-    typeInto(el, value);
-    el.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-    for (let i = 0; i < 15; i++) {
-      await new Promise((r) => setTimeout(r, 150));
-      const opts = [...document.querySelectorAll('[role="option"]')].filter(visible).map((o) => ({ el: o, text: o.innerText }));
-      const hit = opts.length && bestOption(opts, value);
-      if (hit) { hit.el.click(); return true; }
+    if (comboValue(el) && norm(comboValue(el)) === norm(value)) return true;
+    await openCombo(el);
+    let hit = bestOption(comboOptions(el), value);
+    if (!hit) {                       // lists that load as you type (schools, cities)
+      typeInto(el, value);
+      for (let i = 0; i < 20 && !hit; i++) {
+        await sleep(150);
+        hit = bestOption(comboOptions(el), value);
+      }
     }
-    return false;
+    if (!hit) {
+      if (el.value) typeInto(el, "");
+      el.blur();
+      return false;
+    }
+    hit.el.click();
+    await sleep(150);
+    return true;
   }
 
   async function setValue(key, value) {

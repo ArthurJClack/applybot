@@ -32,10 +32,30 @@ def is_sensitive(category: str | None) -> bool:
     return bool(category) and (category == "consent" or category.startswith(SENSITIVE_PREFIXES))
 
 
+def open_in_new_window(url: str) -> bool:
+    """Open `url` in a NEW Firefox window (so ApplyBot's jobs stay out of your everyday window), else the
+    default browser. Later jobs in the queue reuse that window's tab."""
+    import os
+    import shutil
+    import subprocess
+    candidates = [shutil.which("firefox"),
+                  os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), "Mozilla Firefox", "firefox.exe"),
+                  os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"), "Mozilla Firefox", "firefox.exe"),
+                  "/Applications/Firefox.app/Contents/MacOS/firefox"]
+    for exe in candidates:
+        if exe and os.path.exists(exe):
+            try:
+                subprocess.Popen([exe, "-new-window", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True
+            except OSError:
+                continue
+    return webbrowser.open_new(url)
+
+
 class LiveBridge:
     """State shared by the HTTP handler (the extension) and the MCP tools (Claude)."""
 
-    def __init__(self, context: Callable[[], tuple], opener: Callable[[str], object] = webbrowser.open):
+    def __init__(self, context: Callable[[], tuple], opener: Callable[[str], object] = open_in_new_window):
         self._context = context          # () -> (cfg, profile, db)
         self._open = opener
         self.lock = threading.RLock()
