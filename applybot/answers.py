@@ -32,7 +32,8 @@ DEFAULT_ANSWERS = {
             "disability": "I do not want to answer", "sexual_orientation": "Decline to self-identify",
             "transgender": "Decline to self-identify"},
     "sensitive": {"over_18": "", "criminal_conviction": "", "previously_employed_here": "",
-                  "non_compete": "", "background_check_ok": "", "drug_test_ok": ""},
+                  "non_compete": "", "background_check_ok": "", "drug_test_ok": "",
+                  "government_employee": ""},
     "auto_consent": False,
     "files": {"transcript": ""},
     "custom": {},
@@ -62,7 +63,7 @@ class Field:
 
 # (category, regex) - order matters, first match wins
 RULES: list[tuple[str, str]] = [
-    ("consent", r"\b(i (agree|acknowledge|consent|certify|confirm|understand|attest))|i am certifying|i hereby certify|i hereby affirm|review and acknowledge|privacy acknowledgement|privacy (policy|notice)|terms (and|&) conditions|consent to"),
+    ("consent", r"\b(i (agree|acknowledge|consent|certify|confirm|understand|attest))|i am certifying|i hereby certify|i hereby affirm|review and acknowledge|privacy acknowledgement|age-identifying|redact or remove|privacy (policy|notice)|terms (and|&) conditions|consent to"),
     ("resume_file", r"\b(resume|r[eé]sum[eé]|cv)\b"),
     ("cover_letter", r"cover\s*letter"),
     ("transcript_file", r"transcript"),
@@ -79,6 +80,13 @@ RULES: list[tuple[str, str]] = [
     ("work_authorization.authorized_to_work", r"without (the need for |needing |requiring |requirement (of|for) |"
      r"the need of )?(any |current or future |future |now or in the future )*(employer |company |visa |employment )*"
      r"(visa )?sponsorship"),
+    # "confirm you are currently authorized to work" is the authorization question even when the same sentence
+    # mentions immigration timelines (Snowflake) - must come before the sponsorship rule
+    ("work_authorization.authorized_to_work", r"(confirm|are|is) (that )?you (are )?(currently |presently )?(legally )?"
+     r"(authori[sz]ed|eligible|permitted) to work"),
+    # government / government-contractor employment history (King County counts) - not a school question
+    ("sensitive.government_employee", r"government (employee|entity|contractor|official)|employed by .{0,60}government|"
+     r"state-owned enterprise|public official"),
     # "require/need work authorization (support)" asks about SPONSORSHIP, not whether you're authorized
     ("work_authorization.requires_sponsorship", r"sponsor|visa status|h-?1b|immigration|(require|need)s?( any)?( work)? "
      r"authori[sz]ation|authori[sz]ation support"),
@@ -115,7 +123,7 @@ RULES: list[tuple[str, str]] = [
     ("school", r"(?<!high )\bschool\b(?! projects)|university|college|institution"),
     ("degree", r"degree( type| level)?$|level of education|highest (degree|education)"),
     ("major", r"\bmajor\b|field of study|discipline|area of study|concentration"),
-    ("basics.current_company", r"current (company|employer)|most recent (company|employer)|candidate'?s company"),
+    ("basics.current_company", r"current (company|employer)|most recent (company|employer)|most recently worked|candidate'?s company"),
     ("basics.current_title", r"current (title|role|position)|most recent (title|role)|current or previous (job )?title|previous job title"),
     ("basics.years_experience", r"years of (professional )?experience|how many years"),
     ("logistics.start_date", r"start date|when can you start|available to start|availability"),
