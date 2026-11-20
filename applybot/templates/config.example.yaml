@@ -1,0 +1,76 @@
+# ApplyBot configuration. Values like ${OPENAI_API_KEY} are read from the environment or the .env file.
+
+ai:
+  # openai | anthropic | gemini | ollama | openai_compatible | command | none
+  provider: openai
+  model: gpt-4o-mini
+  api_key: ${OPENAI_API_KEY}
+  # Examples:
+  #   provider: anthropic          model: claude-sonnet-4-5          api_key: ${ANTHROPIC_API_KEY}
+  #   provider: gemini             model: gemini-2.5-flash           api_key: ${GEMINI_API_KEY}
+  #   provider: ollama             model: llama3.1                   (local, free; base_url defaults to localhost:11434)
+  #   provider: openai_compatible  model: llama-3.3-70b-versatile    base_url: https://api.groq.com/openai/v1
+  #   provider: command            command: "ollama run llama3.1"    (any CLI that reads stdin, prints a reply)
+  #   provider: none               (no AI: keyword scoring, heuristic tailoring, template cover letters)
+  base_url: null
+  temperature: null
+  max_tokens: 4000
+
+profile:
+  path: profile.txt        # everything about you, in plain text
+  answers_path: answers.yaml
+  parser: auto             # auto | structured | ai
+
+search:
+  # A posting is kept if its TITLE contains any of these (word match, plurals ok)
+  keywords: ["software engineer", "software developer", "software engineering", "swe", "developer", "intern"]
+  required_keywords: []    # every one of these must appear in the title
+  exclude_keywords: ["senior", "sr.", "staff", "principal", "director", "manager", "lead", "phd", "high school"]
+  locations: []            # e.g. ["New York", "NY", "San Francisco", "Seattle"]; empty = anywhere
+  remote_ok: true          # remote postings pass the location filter
+  max_age_days: 45
+  # job_types: [internship]  # internship | full-time | part-time | contract
+  sources:
+    simplify:              # thousands of curated internship / new-grad postings
+      enabled: true
+      repos: ["SimplifyJobs/Summer2027-Internships", "SimplifyJobs/New-Grad-Positions"]
+    greenhouse:            # board tokens: boards.greenhouse.io/<token>
+      enabled: true
+      companies: [stripe, airbnb, databricks, figma, discord, robinhood, cloudflare, duolingo]
+    lever:                 # jobs.lever.co/<slug>
+      enabled: true
+      companies: [palantir, plaid]
+    ashby:                 # jobs.ashbyhq.com/<slug>
+      enabled: true
+      companies: [ramp, notion, openai, linear]
+    remotive: {enabled: true}
+    remoteok: {enabled: false}
+    arbeitnow: {enabled: false}
+    jobspy:                # LinkedIn/Indeed/Glassdoor/ZipRecruiter - needs `pip install python-jobspy`
+      enabled: false
+      sites: [indeed, linkedin]
+      results_wanted: 30
+      location: "United States"
+      hours_old: 168
+
+matching:
+  use_ai: true
+  min_score: 60            # only apply to jobs scoring >= this (0-100)
+
+apply:
+  # dry_run: fill forms but never submit (screenshot saved)
+  # review : fill forms, then YOU confirm each submission in the terminal (recommended)
+  # auto   : submit automatically; anything uncertain (CAPTCHA, login, unknown required question) -> needs_review
+  mode: review
+  headless: false
+  max_per_run: 10
+  max_per_day: 25
+  max_per_company: 2   # max applications ever sent to one company (0 = no limit)
+  delay_seconds: [15, 45]  # random pause between submissions
+  max_steps: 8             # pages to walk through in multi-step forms
+  cover_letter: true
+  resume_formats: [pdf, docx]
+  browser_profile_dir: .browser_profile   # persistent browser: log in to sites once, stay logged in
+  output_dir: output
+
+database: applybot.db
