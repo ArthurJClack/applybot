@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ApplyBot Live</title>
+<style>
+  :root {
+    --bg: #0b0d12; --panel: #12151c; --panel2: #171b24; --line: rgba(255,255,255,.07);
+    --text: #e9ecef; --muted: #8b93a1; --blue: #5c7cfa; --green: #51cf66; --amber: #fcc419; --red: #ff6b6b;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { min-height: 100vh;
+    background: radial-gradient(1200px 600px at 10% -10%, rgba(92,124,250,.14), transparent 60%),
+                radial-gradient(900px 500px at 110% 10%, rgba(81,207,102,.08), transparent 60%), var(--bg); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 22px 18px 40px }
+
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 18px; letter-spacing: .2px }
+  .logo i { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-style: normal;
+    background: linear-gradient(135deg, var(--blue), var(--green)); color: #0b0d12; font-weight: 900 }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 99px;
+    background: var(--panel); border: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 600 }
+  .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); position: relative }
+  .live .pulse { background: var(--green) }
+  .live .pulse::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: var(--green);
+    animation: ping 1.8s cubic-bezier(0,0,.2,1) infinite }
+  @keyframes ping { 75%, 100% { transform: scale(2.4); opacity: 0 } }
+  .spacer { flex: 1 }
+  .btn { border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 8px 14px; border-radius: 10px;
+    font: inherit; font-weight: 600; cursor: pointer; transition: transform .12s ease, background .2s ease, border-color .2s }
+  .btn:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.18) }
+  .btn:active { transform: translateY(0) scale(.98) }
+  .toggle { display: inline-flex; align-items: center; gap: 10px }
+  .switch { width: 40px; height: 22px; border-radius: 99px; background: #2b303b; position: relative; transition: background .25s }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; transition: transform .25s cubic-bezier(.3,1.4,.5,1) }
+  .on .switch { background: var(--green) } .on .switch::after { transform: translateX(18px) }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
+    animation: up .5s cubic-bezier(.2,.9,.25,1) both }
+  .stat:nth-child(2) { animation-delay: .06s } .stat:nth-child(3) { animation-delay: .12s }
+  .stat .n { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.5px }
+  .stat .l { color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px }
+  @keyframes up { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr } .stats { grid-template-columns: 1fr 1fr 1fr } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+    animation: up .55s cubic-bezier(.2,.9,.25,1) both }
+  .card h2 { margin: 0; padding: 14px 16px; font-size: 12.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+    border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px }
+  .card h2 .count { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums }
+
+  .now { padding: 16px }
+  .job { display: flex; align-items: center; gap: 16px; margin-bottom: 14px }
+  .ring { width: 64px; height: 64px; flex: none; position: relative }
+  .ring svg { width: 64px; height: 64px; transform: rotate(-90deg) }
+  .ring circle { fill: none; stroke-width: 6 } .ring .bg { stroke: #232835 }
+  .ring .fg { stroke: url(#g); stroke-linecap: round; transition: stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1) }
+  .ring span { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 800; font-size: 14px }
+  .company { font-size: 20px; font-weight: 750; line-height: 1.2 }
+  .role { color: var(--muted) }
+  .url { color: #6d7586; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100% }
+  .fields { display: grid; gap: 6px; max-height: 56vh; overflow: auto; padding-right: 4px }
+  .f { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1.1fr); gap: 10px; align-items: center;
+    padding: 9px 11px; border-radius: 11px; background: var(--panel2); border: 1px solid transparent;
+    transition: background .4s ease, border-color .4s ease }
+  .f.need { border-color: rgba(252,196,25,.35); background: rgba(252,196,25,.06) }
+  .f.changed { animation: glow 1.1s ease }
+  @keyframes glow { 0% { background: rgba(81,207,102,.28) } 100% { background: var(--panel2) } }
+  .f .st { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 900 }
+  .st.ok { background: rgba(81,207,102,.18); color: var(--green) } .st.you { background: rgba(92,124,250,.2); color: #91a7ff }
+  .st.need { background: rgba(252,196,25,.18); color: var(--amber) } .st.empty { background: #232835; color: #6d7586 }
+  .f .q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .f .v { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right }
+  .empty-state { color: var(--muted); padding: 34px 16px; text-align: center }
+  .empty-state b { display: block; color: var(--text); font-size: 16px; margin-bottom: 4px }
+
+  .side { display: grid; gap: 14px; align-content: start }
+  .list { max-height: 34vh; overflow: auto }
+  .q-item { display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line);
+    animation: slide .4s cubic-bezier(.2,.9,.25,1) both }
+  .q-item:last-child { border-bottom: 0 }
+  .q-item .i { width: 24px; height: 24px; border-radius: 7px; background: #232835; display: grid; place-items: center;
+    font-size: 11.5px; font-weight: 800; color: var(--muted); flex: none }
+  .q-item:first-child .i { background: var(--blue); color: #fff }
+  .q-item .t { min-width: 0 } .q-item .t div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .q-item .t .c { font-weight: 650 } .q-item .t .r { color: var(--muted); font-size: 12.5px }
+  @keyframes slide { from { opacity: 0; transform: translateX(14px) } to { opacity: 1; transform: none } }
+  .log-item { display: flex; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--line); font-size: 13px;
+    animation: drop .45s cubic-bezier(.2,.9,.25,1) both }
+  .log-item time { color: #6d7586; font-variant-numeric: tabular-nums; flex: none }
+  .log-item.good { color: #b2f2bb } .log-item.warn { color: #ffe066 }
+  @keyframes drop { from { opacity: 0; transform: translateY(-8px) } to { opacity: 1; transform: none } }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 30px); opacity: 0; pointer-events: none;
+    background: #1d2330; border: 1px solid var(--line); padding: 10px 16px; border-radius: 12px; font-weight: 600;
+    box-shadow: 0 14px 40px rgba(0,0,0,.4); transition: transform .35s cubic-bezier(.2,1.2,.4,1), opacity .3s }
+  .toast.show { transform: translate(-50%, 0); opacity: 1 }
+  .confetti { position: fixed; top: -12px; width: 8px; height: 14px; border-radius: 2px; pointer-events: none;
+    animation: fall 1.6s cubic-bezier(.25,.6,.4,1) forwards }
+  @keyframes fall { to { transform: translateY(105vh) rotate(720deg); opacity: .2 } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="g" x1="0" x2="1">
+  <stop offset="0" stop-color="#5c7cfa"/><stop offset="1" stop-color="#51cf66"/></linearGradient></defs></svg>
+<div class="wrap">
+  <header>
+    <div class="logo"><i>A</i>ApplyBot Live</div>
+    <span class="pill" id="conn"><span class="pulse"></span><span id="connText">Connecting…</span></span>
+    <div class="spacer"></div>
+    <button class="btn toggle" id="auto" title="Submit automatically when a form is complete and has no CAPTCHA">
+      <span class="switch"></span><span>Auto-submit</span></button>
+    <button class="btn" id="skip" title="Leave this job and open the next one">Skip job →</button>
+  </header>
+
+  <section class="stats">
+    <div class="stat"><div class="n" id="today">0</div><div class="l">Applied today</div></div>
+    <div class="stat"><div class="n" id="total">0</div><div class="l">Applied total</div></div>
+    <div class="stat"><div class="n" id="queued">0</div><div class="l">In the queue</div></div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Now applying <span class="count" id="fieldCount"></span></h2>
+      <div class="now" id="now"><div class="empty-state"><b>Waiting for a form</b>Open a job from the queue and it shows up here.</div></div>
+    </section>
+    <div class="side">
+      <section class="card"><h2>Up next <span class="count" id="queueCount"></span></h2><div class="list" id="queue"></div></section>
+      <section class="card"><h2>Activity</h2><div class="list" id="log"></div></section>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  let prev = { fields: {}, log: 0, today: null, queueSig: "", url: "" };
+
+  function countTo(el, target) {
+    const from = Number(el.textContent) || 0;
+    if (from === target) return;
+    const start = performance.now(), dur = 600;
+    const step = (t) => {
+      const k = Math.min(1, (t - start) / dur), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = Math.round(from + (target - from) * e);
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._h);
+    t._h = setTimeout(() => t.classList.remove("show"), 2400);
+  }
+
+  function confetti() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const colors = ["#5c7cfa", "#51cf66", "#fcc419", "#ff6b6b", "#cc5de8"];
+    for (let i = 0; i < 70; i++) {
+      const c = document.createElement("i");
+      c.className = "confetti";
+      c.style.left = Math.random() * 100 + "vw";
+      c.style.background = colors[i % colors.length];
+      c.style.animationDelay = Math.random() * 0.35 + "s";
+      c.style.animationDuration = 1.2 + Math.random() * 0.9 + "s";
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 2600);
+    }
+  }
+
+  function renderNow(cur) {
+    const box = $("now");
+    if (!cur) {
+      box.innerHTML = '<div class="empty-state"><b>Waiting for a form</b>Open a job from the queue and it shows up here.</div>';
+      $("fieldCount").textContent = "";
+      return;
+    }
+    const fields = cur.fields.filter((f) => f.kind !== "file" || f.value);
+    const done = fields.filter((f) => f.value).length, total = fields.length || 1;
+    const pct = Math.round(100 * done / total), r = 26, len = 2 * Math.PI * r;
+    const newJob = cur.url !== prev.url;
+    if (newJob) prev.fields = {};
+    const rows = fields.map((f, i) => {
+      const k = f.label + "|" + i;
+      const changed = !newJob && prev.fields[k] !== undefined && prev.fields[k] !== f.value && f.value;
+      prev.fields[k] = f.value;
+      const st = f.needs ? ["need", "!"] : f.value ? (f.by_bot ? ["ok", "✓"] : ["you", "•"]) : ["empty", ""];
+      return `<div class="f${f.needs ? " need" : ""}${changed ? " changed" : ""}">
+        <span class="st ${st[0]}">${st[1]}</span><span class="q" title="${esc(f.label)}">${esc(f.label)}</span>
+        <span class="v" title="${esc(f.value)}">${esc(f.value || (f.needs ? "needs an answer" : "—"))}</span></div>`;
+    }).join("");
+    const head = `<div class="job">
+        <div class="ring"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="${r}"/>
+          <circle class="fg" cx="32" cy="32" r="${r}" style="stroke-dasharray:${len};stroke-dashoffset:${len * (1 - pct / 100)}"/></svg>
+          <span>${pct}%</span></div>
+        <div style="min-width:0"><div class="company">${esc(cur.job ? cur.job.company : "Unknown company")}</div>
+          <div class="role">${esc(cur.job ? cur.job.title : "")}</div><div class="url">${esc(cur.url)}</div></div></div>`;
+    if (newJob) {
+      box.innerHTML = head + `<div class="fields">${rows}</div>`;
+      box.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 350, easing: "ease-out" });
+    } else {
+      const fg = box.querySelector(".ring .fg"), label = box.querySelector(".ring span");
+      if (fg) { fg.style.strokeDashoffset = len * (1 - pct / 100); label.textContent = pct + "%"; }
+      const list = box.querySelector(".fields");
+      if (list) list.innerHTML = rows; else box.innerHTML = head + `<div class="fields">${rows}</div>`;
+    }
+    prev.url = cur.url;
+    $("fieldCount").textContent = done + " / " + fields.length;
+  }
+
+  function renderQueue(q, n) {
+    const sig = q.map((j) => j.id).join(",");
+    $("queueCount").textContent = n;
+    if (sig === prev.queueSig) return;
+    prev.queueSig = sig;
+    $("queue").innerHTML = q.length ? q.map((j, i) => `<div class="q-item" style="animation-delay:${Math.min(i, 10) * 30}ms">
+        <span class="i">${i + 1}</span><div class="t"><div class="c">${esc(j.company)}</div><div class="r">${esc(j.title)}</div></div></div>`).join("")
+      : '<div class="empty-state">Queue is empty.</div>';
+  }
+
+  function renderLog(lines) {
+    const box = $("log");
+    if (lines.length === prev.log) return;
+    const fresh = lines.slice(prev.log).reverse();
+    for (const line of fresh) {
+      const [time, ...rest] = line.split(" ");
+      const text = rest.join(" ");
+      const div = document.createElement("div");
+      div.className = "log-item" + (/^applied/.test(text) ? " good" : /need|skip|paused|error/.test(text) ? " warn" : "");
+      div.innerHTML = `<time>${esc(time)}</time><span>${esc(text)}</span>`;
+      box.prepend(div);
+    }
+    while (box.children.length > 60) box.lastChild.remove();
+    prev.log = lines.length;
+  }
+
+  async function tick() {
+    try {
+      const d = await (await fetch("/live/feed", { cache: "no-store" })).json();
+      $("conn").classList.toggle("live", d.connected);
+      $("connText").textContent = d.connected ? "Firefox connected" : "Waiting for Firefox";
+      $("auto").classList.toggle("on", d.auto_submit);
+      if (prev.today !== null && d.applied_today > prev.today) { confetti(); toast("Application submitted ✓"); }
+      prev.today = d.applied_today;
+      countTo($("today"), d.applied_today); countTo($("total"), d.applied_total); countTo($("queued"), d.queued);
+      renderNow(d.current); renderQueue(d.queue, d.queued); renderLog(d.log);
+    } catch (e) {
+      $("conn").classList.remove("live");
+      $("connText").textContent = "ApplyBot not running";
+    }
+  }
+
+  async function control(action) {
+    const r = await fetch("/live/control", { method: "POST", headers: { "Content-Type": "application/json", "X-ApplyBot": "1" },
+                                             body: JSON.stringify({ action }) });
+    return r.json();
+  }
+  $("auto").addEventListener("click", async () => {
+    const on = !$("auto").classList.contains("on");
+    await control(on ? "resume" : "pause");
+    toast(on ? "Auto-submit on" : "Auto-submit paused");
+    tick();
+  });
+  $("skip").addEventListener("click", async () => {
+    const r = await control("skip");
+    toast(r.next ? "Skipping to the next job…" : "Nothing left in the queue");
+  });
+
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

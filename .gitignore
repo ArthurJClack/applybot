@@ -17,3 +17,4 @@ dist/
 /profile_old.txt
 /profile*.txt
 !applybot/templates/*.txt
+applybot/live/signed/

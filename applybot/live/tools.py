@@ -59,13 +59,13 @@ def register(tool: Callable, context: Callable[[], tuple]) -> None:
                     "note": "no form reported yet - is the extension loaded and a job page open?"}
         need = set(page["unresolved"])
         return {"url": page["url"], "job": page["job"], "queued": len(b.queue), "log": b.log[-10:],
-                "fields": [{"label": f.get("label"), "kind": f.get("kind"), "value": f.get("value"),
+                "fields": [{"key": f["key"], "label": f.get("label"), "kind": f.get("kind"), "value": f.get("value"),
                             "options": (f.get("options") or [])[:25], "needs_answer": f["key"] in need,
                             "category": page["categories"].get(f["key"])} for f in page["fields"]]}
 
     @tool
     def live_fill(values: dict[str, str], confirmed_by_user: bool = False) -> dict:
-        """Type answers into the live form, keyed by field label (as shown by live_status). The page updates within
+        """Type answers into the live form, keyed by field label or key (as shown by live_status). The page updates within
         a couple of seconds. Password and file fields are refused. Legal, EEO, work-authorization and consent
         answers are refused unless the user gave that exact answer and you pass confirmed_by_user=True."""
         return _up().set_fields(values, confirmed_by_user)
@@ -84,4 +84,17 @@ def register(tool: Callable, context: Callable[[], tuple]) -> None:
         b = _up()
         b.auto_submit = bool(on)
         return {"auto_submit": b.auto_submit}
+
+    @tool
+    def live_dashboard() -> dict:
+        """Open the live dashboard (what ApplyBot is doing right now, the queue, and today's count) in a new window."""
+        b = _up()
+        url = f"http://127.0.0.1:{b.port}/live/"
+        b._open(url)
+        return {"opened": url}
+
+    @tool
+    def live_project_links(links: list[str]) -> dict:
+        """Save the links to give whenever an application asks for projects / portfolio / other links."""
+        return _up().save_project_links(links)
 

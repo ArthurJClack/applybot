@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "ApplyBot Live",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Fills job application forms in your own browser from your local ApplyBot. Never touches passwords.",
   "browser_specific_settings": { "gecko": { "id": "applybot-live@arthurjclack.github.io", "strict_min_version": "109.0" } },
   "permissions": ["http://127.0.0.1/*", "activeTab", "storage"],

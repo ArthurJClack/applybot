@@ -16,7 +16,31 @@
   const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
   const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length) && getComputedStyle(el).visibility !== "hidden";
 
+  // Many ATSs (Ashby, Lever, Workable) wrap each question in an "entry" whose title is the real question;
+  // the input itself only carries a placeholder like "Start typing...".
+  const ENTRY_SEL = '.ashby-application-form-field-entry, [class*="fieldEntry"], [class*="field-entry"], .application-question, li.application-field, [data-ui="field"]';
+  const PLACEHOLDERISH = /^(start typing|type here|select|choose|search|please select)\b|^\W*$/i;
+  function entryOf(el) { return el.closest(ENTRY_SEL); }
+  function entryTitleEl(el) {
+    const entry = entryOf(el);
+    if (!entry) return null;
+    return entry.querySelector('.ashby-application-form-question-title, [class*="question-title"], [class*="questionTitle"], legend, .application-label, label');
+  }
+  function entryTitle(el) {
+    const t = entryTitleEl(el);
+    return t && !t.contains(el) ? clean(t.innerText) : "";
+  }
+  function entryRequired(el) {
+    const t = entryTitleEl(el);
+    return !!t && (/required/i.test(t.className || "") || /\*\s*$/.test(t.innerText || ""));
+  }
+
   function labelFor(el) {
+    const own = ownLabel(el);
+    return own && !PLACEHOLDERISH.test(own) ? own : (entryTitle(el) || own);
+  }
+
+  function ownLabel(el) {
     const byId = el.id && document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
     if (byId) return clean(byId.innerText);
     const ref = el.getAttribute("aria-labelledby");
@@ -40,10 +64,11 @@
       const t = ref ? clean((document.getElementById(ref) || {}).innerText) : clean(group.getAttribute("aria-label"));
       if (t) return t;
     }
-    return "";
+    return entryTitle(el);
   }
 
-  const isRequired = (el, label) => el.required || el.getAttribute("aria-required") === "true" || /\*\s*$/.test(label);
+  const isRequired = (el, label) => el.required || el.getAttribute("aria-required") === "true" || /\*\s*$/.test(label) || entryRequired(el);
+  const optionLabel = (el) => ownLabel(el) || clean(el.value);
 
   function keyFor(el) {
     if (!el.dataset.applybotKey) el.dataset.applybotKey = "f" + (++seq);
@@ -53,8 +78,18 @@
   function scan() {
     fields.clear();
     const out = [], groups = new Map();
+    for (const box of document.querySelectorAll('[class*="input-yesno"], [class*="_yesno_"]')) {
+      const buttons = [...box.querySelectorAll("button")].filter(visible);
+      if (buttons.length < 2) continue;
+      const key = keyFor(box), label = entryTitle(box);
+      const pressed = buttons.find((b) => b.getAttribute("aria-pressed") === "true");
+      fields.set(key, { kind: "yesno", els: buttons, label });
+      out.push({ key, kind: "radio", label, required: entryRequired(box), options: buttons.map((b) => clean(b.innerText)),
+                 value: pressed ? clean(pressed.innerText) : "" });
+    }
     for (const el of document.querySelectorAll("input, textarea, select")) {
       const type = (el.getAttribute("type") || el.tagName).toLowerCase();
+      if (el.closest('[class*="input-yesno"], [class*="_yesno_"]')) continue;
       if (type === "password" || type === "hidden" || type === "submit" || type === "button" || type === "image") continue;
       if (el.disabled || (type !== "file" && !visible(el))) continue;
       if (el.getAttribute("aria-hidden") === "true" && type !== "file") continue;   // e.g. react-select's shadow input
@@ -74,7 +109,7 @@
           fields.set(key, { kind: g.kind, els: [], label });
           out.push(g);
         }
-        const g = groups.get(gid), opt = labelFor(el);
+        const g = groups.get(gid), opt = optionLabel(el);
         g.options.push(opt);
         g.required = g.required || isRequired(el, label);
         if (el.checked) g.value = g.value ? g.value + ", " + opt : opt;
@@ -193,11 +228,17 @@
       const wanted = f.kind === "radio" ? [value] : String(value).split(/\s*,\s*/);
       let any = false;
       for (const w of wanted) {
-        const hit = bestOption(f.els.map((e) => ({ el: e, text: labelFor(e) })), w);
+        const hit = bestOption(f.els.map((e) => ({ el: e, text: optionLabel(e) })), w);
         if (hit && !hit.el.checked) hit.el.click();
         any = any || !!hit;
       }
       return any;
+    }
+    if (f.kind === "yesno") {
+      const hit = bestOption(f.els.map((b) => ({ el: b, text: b.innerText })), value);
+      if (!hit) return false;
+      if (hit.el.getAttribute("aria-pressed") !== "true") hit.el.click();
+      return true;
     }
     if (f.kind === "checkbox") {
       const want = /^(yes|true|1|on)$/i.test(String(value));
@@ -230,33 +271,142 @@
     }
   }
 
-  function draw(note) {
+  // ---- the floating panel: shadow DOM so the site's CSS can't touch it ----
+  const PANEL_CSS = `
+    :host { all: initial; }
+    .card { position: fixed; right: 18px; bottom: 18px; z-index: 2147483647; width: 300px; max-height: 60vh;
+      display: flex; flex-direction: column; overflow: hidden; border-radius: 14px;
+      background: rgba(18, 20, 26, .92); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px);
+      color: #e9ecef; font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      border: 1px solid rgba(255,255,255,.08); box-shadow: 0 18px 50px rgba(0,0,0,.45);
+      animation: rise .45s cubic-bezier(.2,.9,.25,1.15) both; transition: transform .25s ease, opacity .25s ease; }
+    .card.min { transform: translateY(calc(100% - 46px)); }
+    @keyframes rise { from { transform: translateY(24px) scale(.96); opacity: 0 } to { transform: none; opacity: 1 } }
+    .head { display: flex; align-items: center; gap: 9px; padding: 12px 14px 10px; cursor: pointer; user-select: none; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #51cf66; flex: none; position: relative; }
+    .dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: inherit; opacity: .5;
+      animation: ping 1.8s cubic-bezier(0,0,.2,1) infinite; }
+    .dot.warn { background: #fcc419 } .dot.off { background: #868e96 } .dot.off::after { display: none }
+    @keyframes ping { 75%, 100% { transform: scale(2.2); opacity: 0 } }
+    .title { font-weight: 650; letter-spacing: .1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 }
+    .brand { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; color: #748ffc; font-weight: 700 }
+    .chev { color: #868e96; transition: transform .25s ease } .min .chev { transform: rotate(180deg) }
+    .body { padding: 0 14px 14px; overflow: auto }
+    .bar { height: 6px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; margin: 2px 0 8px }
+    .fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #4c6ef5, #51cf66);
+      background-size: 200% 100%; animation: shimmer 2.4s linear infinite; transition: width .6s cubic-bezier(.2,.8,.2,1) }
+    @keyframes shimmer { to { background-position: -200% 0 } }
+    .stats { display: flex; justify-content: space-between; color: #adb5bd; font-size: 12px; margin-bottom: 8px }
+    .stats b { color: #f8f9fa; font-variant-numeric: tabular-nums }
+    .note { padding: 8px 10px; border-radius: 9px; background: rgba(76,110,245,.14); color: #dbe4ff; margin-bottom: 8px;
+      animation: fadein .3s ease both }
+    .note.ok { background: rgba(81,207,102,.16); color: #d3f9d8 } .note.bad { background: rgba(250,82,82,.16); color: #ffe3e3 }
+    .need { display: flex; gap: 8px; align-items: flex-start; width: 100%; text-align: left; border: 0; cursor: pointer;
+      background: rgba(252,196,25,.08); color: #ffe8a1; padding: 7px 9px; border-radius: 8px; margin-top: 5px;
+      font: inherit; transition: background .15s ease, transform .15s ease; animation: slidein .35s ease both }
+    .need:hover { background: rgba(252,196,25,.18); transform: translateX(-2px) }
+    .need::before { content: "→"; color: #fcc419 }
+    @keyframes slidein { from { opacity: 0; transform: translateX(12px) } to { opacity: 1; transform: none } }
+    @keyframes fadein { from { opacity: 0 } to { opacity: 1 } }
+    .ring { display: flex; align-items: center; gap: 10px; margin-top: 4px }
+    .ring svg { width: 34px; height: 34px; transform: rotate(-90deg) }
+    .ring circle { fill: none; stroke-width: 4 } .ring .bg { stroke: rgba(255,255,255,.1) }
+    .ring .fg { stroke: #51cf66; stroke-linecap: round; transition: stroke-dashoffset 1s linear }
+    .cancel { margin-left: auto; border: 0; border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit;
+      font-weight: 600; background: #fa5252; color: #fff; transition: filter .15s } .cancel:hover { filter: brightness(1.1) }
+    .check { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: #51cf66; color: #0b1e0f;
+      text-align: center; line-height: 22px; font-weight: 800; animation: pop .5s cubic-bezier(.2,1.6,.4,1) both }
+    @keyframes pop { from { transform: scale(0) } to { transform: scale(1) } }
+  `;
+  let shadow = null, card = null, minimized = false, countdownLeft = 0, lastNeed = "";
+
+  function ensurePanel() {
+    if (card && card.isConnected) return;
+    panel = document.createElement("div");
+    panel.id = "applybot-live-panel";
+    shadow = panel.attachShadow({ mode: "open" });
+    const style = document.createElement("style");
+    style.textContent = PANEL_CSS;
+    card = document.createElement("div");
+    card.className = "card";
+    shadow.append(style, card);
+    document.documentElement.appendChild(panel);
+  }
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  function draw(note, tone) {
     if (window.top !== window && !fields.size) return;
-    if (!panel) {
-      panel = document.createElement("div");
-      panel.id = "applybot-live-panel";
-      panel.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483647;max-width:320px;max-height:50vh;overflow:auto;" +
-        "background:#16181d;color:#f1f3f5;font:13px/1.45 system-ui,sans-serif;padding:12px 14px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.35)";
-      document.documentElement.appendChild(panel);
+    ensurePanel();
+    card.classList.toggle("min", minimized);
+    card.textContent = "";
+    const total = Object.keys(filled).length + unresolved.length;
+    const head = el("div", "head");
+    head.append(el("span", "dot" + (offline ? " off" : unresolved.length ? " warn" : "")));
+    const t = el("div", "title");
+    t.append(el("div", "brand", "ApplyBot Live"), el("div", null, offline ? "Not connected" : (job ? job.company + " · " + job.title : "Filling this form")));
+    head.append(t, el("span", "chev", "▾"));
+    head.addEventListener("click", () => { minimized = !minimized; card.classList.toggle("min", minimized); });
+    card.append(head);
+    const body = el("div", "body");
+    card.append(body);
+    if (offline) {
+      body.append(el("div", "note bad", "Open the Claude desktop app, then reload this page."));
+      return;
     }
-    panel.textContent = "";
-    const head = document.createElement("div");
-    head.style.cssText = "font-weight:600;margin-bottom:4px";
-    head.textContent = offline ? "ApplyBot: not running" : "ApplyBot" + (job ? " · " + job.company : "");
-    panel.appendChild(head);
-    const line = document.createElement("div");
-    line.textContent = offline ? "Open the Claude desktop app (or run ApplyBot) and reload this page."
-      : note || (Object.keys(filled).length + " filled · " + unresolved.length + " need you");
-    panel.appendChild(line);
+    const bar = el("div", "bar"), fillEl = el("div", "fill");
+    fillEl.style.width = (total ? Math.round(100 * Object.keys(filled).length / total) : 0) + "%";
+    bar.append(fillEl);
+    const stats = el("div", "stats");
+    const a = el("span"); a.append(el("b", null, String(Object.keys(filled).length)), document.createTextNode(" filled"));
+    const b = el("span"); b.append(el("b", null, String(unresolved.length)), document.createTextNode(unresolved.length === 1 ? " needs you" : " need you"));
+    stats.append(a, b);
+    body.append(bar, stats);
+    if (note) {
+      const n = el("div", "note" + (tone ? " " + tone : ""));
+      if (tone === "ok") n.append(el("span", "check", "✓"), document.createTextNode("  " + note)); else n.textContent = note;
+      body.append(n);
+    }
+    if (countdownLeft > 0) {
+      const ring = el("div", "ring");
+      const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg"), r = 14, len = 2 * Math.PI * r;
+      svg.setAttribute("viewBox", "0 0 34 34");
+      for (const cls of ["bg", "fg"]) {
+        const c = document.createElementNS(NS, "circle");
+        c.setAttribute("cx", 17); c.setAttribute("cy", 17); c.setAttribute("r", r); c.setAttribute("class", cls);
+        if (cls === "fg") { c.style.strokeDasharray = len; c.style.strokeDashoffset = len * (1 - countdownLeft / 5); }
+        svg.append(c);
+      }
+      const stop = el("button", "cancel", "Cancel");
+      stop.addEventListener("click", (e) => { e.stopPropagation(); cancelled = true; countdownLeft = 0; draw("Auto-submit cancelled - submit when you're ready."); });
+      ring.append(svg, el("span", null, "Submitting in " + countdownLeft + "s"), stop);
+      body.append(ring);
+    }
+    const needSig = unresolved.join(",");
     for (const key of unresolved.slice(0, 12)) {
       const f = fields.get(key);
       if (!f) continue;
-      const a = document.createElement("a");
-      a.textContent = "• " + (f.label || "unlabelled field").slice(0, 70);
-      a.href = "#";
-      a.style.cssText = "display:block;color:#ffd43b;text-decoration:none;margin-top:3px";
-      a.addEventListener("click", (e) => { e.preventDefault(); f.els[0].scrollIntoView({ block: "center", behavior: "smooth" }); f.els[0].focus(); });
-      panel.appendChild(a);
+      const btn = el("button", "need", (f.label || "Unlabelled question").slice(0, 80));
+      if (needSig === lastNeed) btn.style.animation = "none";      // only animate when the list changes
+      btn.addEventListener("click", (e) => { e.stopPropagation(); f.els[0].scrollIntoView({ block: "center", behavior: "smooth" }); f.els[0].focus && f.els[0].focus(); });
+      body.append(btn);
+    }
+    lastNeed = needSig;
+  }
+
+  // a quick green flash on each field as the bot fills it
+  function flash(key) {
+    const f = fields.get(key);
+    for (const e of (f && f.els) || []) {
+      try {
+        e.animate([{ boxShadow: "0 0 0 0 rgba(81,207,102,.0)" }, { boxShadow: "0 0 0 4px rgba(81,207,102,.55)" },
+                   { boxShadow: "0 0 0 0 rgba(81,207,102,.0)" }], { duration: 700, easing: "ease-out" });
+      } catch (err) { /* very old engines */ }
     }
   }
 
@@ -272,7 +422,7 @@
       const cur = list.find((f) => f.key === item.key);
       if (cur && cur.value && !item.file) { filled[item.key] = cur.value; continue; }   // never overwrite what's there
       const ok = item.file ? await attach(item.key, item.file) : await setValue(item.key, item.value);
-      if (ok) filled[item.key] = item.value || item.filename;
+      if (ok) { filled[item.key] = item.value || item.filename; flash(item.key); }
     }
     await report();
     window.__applybotReady = true;
@@ -293,25 +443,19 @@
     if (!autoSubmit || cancelled || countdown || done) return;
     const btn = submitButton();
     if (!btn || unresolved.length || document.querySelector(CAPTCHA_SEL)) return;
-    let left = 5;
-    const tick = () => {
-      if (cancelled || unresolved.length) { clearInterval(countdown); countdown = null; draw(); return; }
-      if (left <= 0) {
+    countdownLeft = 5;
+    draw("Everything's filled.");
+    countdown = setInterval(() => {
+      if (cancelled || unresolved.length) { clearInterval(countdown); countdown = null; countdownLeft = 0; draw(); return; }
+      countdownLeft -= 1;
+      if (countdownLeft <= 0) {
         clearInterval(countdown); countdown = null;
         draw("Submitting…");
         btn.click();
         return;
       }
-      draw("All filled - submitting in " + left + "s");
-      const stop = document.createElement("button");
-      stop.textContent = "Cancel auto-submit";
-      stop.style.cssText = "margin-top:6px;padding:4px 10px;border-radius:6px;border:0;background:#e03131;color:#fff;cursor:pointer";
-      stop.addEventListener("click", () => { cancelled = true; });
-      panel.appendChild(stop);
-      left -= 1;
-    };
-    tick();
-    countdown = setInterval(tick, 1000);
+      draw("Everything's filled.");
+    }, 1000);
   }
 
   async function report() {
@@ -332,7 +476,8 @@
     if (!fields.size || offline) return;
     const got = await send({ type: "commands" });
     for (const c of (got && got.commands) || []) {
-      if (await setValue(c.key, c.value)) filled[c.key] = c.value;
+      if (c.goto) { window.top.location.href = c.goto; return; }
+      if (await setValue(c.key, c.value)) { filled[c.key] = c.value; flash(c.key); }
     }
     await report();
     maybeAutoSubmit();
@@ -344,10 +489,10 @@
     done = true;
     const got = await send({ type: "confirmed", data: { url: location.href } });
     if (got && got.next) {
-      draw("Applied ✓ - opening the next job…");
+      draw("Applied - opening the next job…", "ok");
       setTimeout(() => { window.top.location.href = got.next; }, 1200);
     } else if (got && !got.offline) {
-      draw(got.applied ? "Applied ✓ - that was the last one in the queue." : "Applied ✓");
+      draw(got.applied ? "Applied - that was the last one in the queue." : "Applied", "ok");
     }
   }
 

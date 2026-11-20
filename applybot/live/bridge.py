@@ -20,7 +20,9 @@ from applybot.answers import SENSITIVE_PREFIXES, AnswerBank, Field, choose_optio
 DEFAULT_PORT = 8765
 FILE_KINDS = {"resume": "resume", "cover_letter": "cover_letter"}
 _ID_RE = re.compile(r"(\d{6,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[A-F0-9]{10})")
-_ALLOWED_ORIGIN = re.compile(r"^(moz|chrome)-extension://")
+_ALLOWED_ORIGIN = re.compile(r"^((moz|chrome)-extension://|http://(127\.0\.0\.1|localhost):\d+$)")
+PROJECT_LINKS_RE = re.compile(r"project|portfolio|work samples?|other (links|urls?)|links? to (your )?(work|projects?)|github,? (project|portfolio)", re.I)
+DASHBOARD = Path(__file__).parent / "dashboard.html"
 
 
 def url_tokens(url: str) -> list[str]:
@@ -91,6 +93,21 @@ class LiveBridge:
             return db.get_job(self.expected)
         return None
 
+    @staticmethod
+    def project_links(bank: AnswerBank, profile: dict) -> list[str]:
+        saved = bank.data.get("project_links")
+        if saved:
+            return [str(x) for x in saved]
+        c = profile.get("contact", {})
+        return [x for x in (c.get("website"), c.get("github")) if x]
+
+    def save_project_links(self, links: list[str]) -> dict:
+        cfg, profile, _ = self._context()
+        bank = AnswerBank(cfg.path("profile", "answers_path"), profile)
+        bank.data["project_links"] = [str(x).strip() for x in links if str(x).strip()]
+        bank.save()
+        return {"project_links": bank.data["project_links"]}
+
     def documents(self, cfg, job: dict | None) -> dict[str, Path]:
         """The tailored resume / cover letter for this job, falling back to the newest ones anywhere."""
         from applybot.pipeline import job_dir
@@ -118,6 +135,12 @@ class LiveBridge:
                         name=f.get("name", ""), placeholder=f.get("placeholder", ""))
                   for f in data.get("fields", []) if f.get("kind") != "password"]
         resolved = resolve_fields(fields, bank, profile, job or {}, None)
+        links = self.project_links(bank, profile)
+        for f in fields:
+            if links and f.kind in ("text", "textarea", "url") and PROJECT_LINKS_RE.search(f.question or ""):
+                one_line = f.kind != "textarea"
+                resolved[f.key].value = (", " if one_line else "\n").join(links)
+                resolved[f.key].source = "saved"
         fill, unresolved = [], []
         for f in fields:
             r = resolved[f.key]
@@ -270,6 +293,51 @@ class LiveBridge:
                     queued.append(name)
         return {"queued": queued, "refused": refused, "unknown": unknown}
 
+    # ---- dashboard -----------------------------------------------------------------------------------------
+    def feed(self) -> dict:
+        cfg, _, db = self._context()
+        page = self.current()
+        with self.lock:
+            queue = list(self.queue)
+            log = list(self.log[-60:])
+            auto = self.auto_submit if self.auto_submit is not None else bool((cfg.get("live") or {}).get("auto_submit"))
+        jobs = {}
+        for jid in queue[:25] + ([page["job"]] if page and page.get("job") else []):
+            j = db.get_job(jid)
+            if j:
+                jobs[jid] = {"company": j["company"], "title": j["title"], "location": j.get("location") or ""}
+        today = time.strftime("%Y-%m-%d")
+        applied_today = db.conn.execute("SELECT COUNT(*) FROM applications WHERE status='applied' AND created_at LIKE ?",
+                                        (today + "%",)).fetchone()[0]
+        applied_total = db.conn.execute("SELECT COUNT(*) FROM jobs WHERE status='applied'").fetchone()[0]
+        current = None
+        if page:
+            need = set(page["unresolved"])
+            current = {"url": page["url"], "job": jobs.get(page.get("job")), "fields": [
+                {"label": f.get("label") or "(unlabelled)", "kind": f.get("kind"),
+                 "value": "" if f.get("kind") == "password" else str(f.get("value") or "")[:160],
+                 "needs": f["key"] in need, "by_bot": f["key"] in page.get("filled", {})} for f in page["fields"]
+                if f.get("kind") != "password"]}
+        return {"connected": time.time() - self.last_seen < 20, "auto_submit": auto, "current": current,
+                "queue": [{"id": j, **jobs.get(j, {"company": "?", "title": j})} for j in queue[:25]],
+                "queued": len(queue), "log": log, "applied_today": applied_today, "applied_total": applied_total}
+
+    def control(self, tab: str, data: dict) -> dict:
+        action = data.get("action")
+        if action in ("pause", "resume"):
+            self.auto_submit = action == "resume"
+            self._note("auto-submit " + ("on" if self.auto_submit else "paused"))
+            return {"auto_submit": self.auto_submit}
+        if action == "skip":
+            page = self.current()
+            url = self.next_url()
+            if page and url:
+                with self.lock:
+                    self.commands.setdefault(page["tab"], []).append({"goto": url})
+                self._note("skipped to the next job")
+            return {"next": url}
+        return {"error": "unknown action"}
+
     # ---- server --------------------------------------------------------------------------------------------
     def start(self, port: int = DEFAULT_PORT) -> int:
         if self.server:
@@ -306,6 +374,11 @@ class LiveBridge:
                 if not self._allowed(False):
                     return self._json({"error": "forbidden"}, 403)
                 q = parse_qs(u.query)
+                if u.path in ("/live", "/live/"):
+                    return self._send(200, DASHBOARD.read_bytes(), "text/html; charset=utf-8",
+                                      {"Cache-Control": "no-store", "X-Frame-Options": "DENY"})
+                if u.path == "/live/feed":
+                    return self._json(bridge.feed())
                 if u.path == "/live/ping":
                     return self._json({"ok": True, "app": "applybot-live", "queued": len(bridge.queue)})
                 if u.path == "/live/commands":
@@ -328,7 +401,7 @@ class LiveBridge:
                     return self._json({"error": "bad json"}, 400)
                 tab = str(data.get("tab", "0"))
                 fn = {"/live/page": bridge.page, "/live/state": bridge.state, "/live/submitted": bridge.submitted,
-                      "/live/confirmed": bridge.confirmed}.get(u.path)
+                      "/live/confirmed": bridge.confirmed, "/live/control": bridge.control}.get(u.path)
                 if not fn:
                     return self._json({"error": "not found"}, 404)
                 try:

@@ -152,7 +152,7 @@ def test_content_script_fills_a_real_page(live):
         assert page.input_value("#fn") and page.input_value("#em")
         assert page.input_value("#pw") == ""                                   # password untouched
         assert page.evaluate("document.querySelector('#cv').files[0].name").endswith("Resume.pdf")
-        assert "need you" in page.inner_text("#applybot-live-panel")
+        assert "need you" in page.evaluate("document.querySelector('#applybot-live-panel').shadowRoot.textContent")
         status = live.current()
         assert all(f["kind"] != "password" for f in status["fields"])          # never even reported
         # Claude pushes live edits by label
@@ -167,7 +167,7 @@ def test_content_script_fills_a_real_page(live):
         page.fill("#why", "I like building tools.")
         page.click("#go")
         page.evaluate("window.__applybotPoll()")
-        page.wait_for_function("document.querySelector('#applybot-live-panel') && /Applied/.test(document.querySelector('#applybot-live-panel').innerText)")
+        page.wait_for_function("document.querySelector('#applybot-live-panel') && /Applied/.test(document.querySelector('#applybot-live-panel').shadowRoot.textContent)")
         browser.close()
     assert t["db"].get_job(t["job"]["id"])["status"] == "applied"
 
@@ -231,3 +231,58 @@ def test_add_jobs_appends_without_reopening(live):
     live.queue = ["a", "b"]
     live.add_jobs(["c", "a"], front=True)
     assert live.queue == ["c", "a", "b"]
+
+
+def test_project_links_fill_portfolio_questions(live, profile):
+    live.save_project_links(["https://arthurjclack.github.io", "https://github.com/ArthurJClack", "https://shitboxrally.example"])
+    data = [{"key": "p1", "kind": "textarea", "label": "Optional GitHub, Project, or other links"},
+            {"key": "p2", "kind": "text", "label": "Portfolio URL"}]
+    fill = {x["key"]: x["value"] for x in live.page("7", {"url": URL, "fields": data})["fill"]}
+    assert fill["p1"].splitlines()[-1] == "https://shitboxrally.example"
+    assert fill["p2"].count(", ") == 2
+
+
+def test_dashboard_feed_and_controls(live):
+    port = live.start(0)
+    t = live.test
+    live.open_jobs([t["job"]["id"], t["next"].id])
+    live.page("7", {"url": URL, "fields": fields()})
+    html = urllib.request.urlopen(f"http://127.0.0.1:{port}/live/").read().decode()
+    assert "ApplyBot Live" in html
+    code, feed = _req(port, "/live/feed")
+    assert code == 200 and feed["current"]["job"]["company"] == "Acme" and feed["queued"] == 1
+    assert all(f["kind"] != "password" for f in feed["current"]["fields"])
+    own = {"X-ApplyBot": "1", "Origin": f"http://127.0.0.1:{port}"}
+    assert _req(port, "/live/control", {"action": "pause"}, own)[1] == {"auto_submit": False}
+    assert _req(port, "/live/control", {"action": "skip"}, {"X-ApplyBot": "1", "Origin": "https://evil.example"})[0] == 403
+    code, out = _req(port, "/live/control", {"action": "skip"}, own)
+    assert code == 200 and out["next"].startswith("https://jobs.lever.co/beta/")
+    assert live.take_commands("7")["commands"][0]["goto"] == out["next"]
+
+
+ASHBY = """<!doctype html><html><body><form onsubmit="return false">
+ <div class="ashby-application-form-field-entry">
+   <label class="_required_x ashby-application-form-question-title" for="loc">Where are you located?</label>
+   <input id="loc" placeholder="Start typing..." type="text"></div>
+ <div class="ashby-application-form-field-entry">
+   <label class="_required_x ashby-application-form-question-title">Do you reside in the U.S.?</label>
+   <div class="ashby-application-form-input-yesno">
+     <button type="button" aria-pressed="false" onclick="this.setAttribute('aria-pressed','true')">Yes</button>
+     <button type="button" aria-pressed="false" onclick="this.setAttribute('aria-pressed','true')">No</button>
+     <input type="checkbox" style="display:none"></div></div>
+ <div class="ashby-application-form-field-entry">
+   <label class="ashby-application-form-question-title">Export control status</label>
+   <label><input type="radio" name="ec" value="a"> I am a U.S. person</label>
+   <label><input type="radio" name="ec" value="b"> None of the above</label></div>
+</form></body></html>"""
+
+
+def test_ashby_titles_required_and_yes_no_buttons(live):
+    got = _run_page(live, ASHBY, "() => 1")
+    assert got == 1
+    page = live.current()
+    by = {f["label"]: f for f in page["fields"]}
+    assert set(by) == {"Where are you located?", "Do you reside in the U.S.?", "Export control status"}
+    assert by["Do you reside in the U.S.?"]["kind"] == "radio" and by["Do you reside in the U.S.?"]["required"]
+    assert by["Export control status"]["options"] == ["I am a U.S. person", "None of the above"]
+    assert by["Where are you located?"]["required"]
