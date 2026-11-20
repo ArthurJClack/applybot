@@ -46,6 +46,13 @@ search:
     remotive: {enabled: true}
     remoteok: {enabled: false}
     arbeitnow: {enabled: false}
+    usajobs:               # federal jobs; free key at https://developer.usajobs.gov/apirequest/
+      enabled: false
+      api_key: ${USAJOBS_API_KEY}
+      email: ${USAJOBS_EMAIL}   # the email you requested the key with
+      keywords: ["information technology", "software", "IT specialist", "computer"]
+      location: ""           # "" = nationwide, or e.g. "Washington"
+      students_only: false   # true = Pathways / student hiring only
     jobspy:                # LinkedIn/Indeed/Glassdoor/ZipRecruiter - needs `pip install python-jobspy`
       enabled: false
       sites: [indeed, linkedin]
@@ -74,3 +81,13 @@ apply:
   output_dir: output
 
 database: applybot.db
+
+# Read emailed verification codes (Greenhouse "security code" etc.) from your inbox and type them in.
+# Read-only. Gmail: create an app password at https://myaccount.google.com/apppasswords and put
+# APPLYBOT_MAIL_USER / APPLYBOT_MAIL_APP_PASSWORD in .env. Test with: python main.py mail-code
+mail:
+  enabled: false
+  imap_host: imap.gmail.com
+  user: ${APPLYBOT_MAIL_USER}
+  app_password: ${APPLYBOT_MAIL_APP_PASSWORD}
+  wait_seconds: 90

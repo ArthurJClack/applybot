@@ -4,16 +4,21 @@ from __future__ import annotations
 import httpx
 
 from applybot.models import Job
+from applybot.sources.pnw_boards import boards_for
 from applybot.sources import guess_job_type, html_to_text, is_remote
 
 
 def fetch(cfg: dict, search: dict, http: httpx.Client) -> list[Job]:
     jobs: list[Job] = []
-    for company in cfg.get("companies", []):
-        r = http.get(f"https://boards-api.greenhouse.io/v1/boards/{company}/jobs", params={"content": "true"})
-        if r.status_code == 404:
-            continue
-        r.raise_for_status()
+    for company in boards_for("greenhouse", cfg):
+        try:
+            r = http.get(f"https://boards-api.greenhouse.io/v1/boards/{company}/jobs", params={"content": "true"})
+            if r.status_code == 404:
+                continue
+            r.raise_for_status()
+            r.json()
+        except (httpx.HTTPError, ValueError):
+            continue  # one bad or retired board must not sink the whole source
         for item in r.json().get("jobs", []):
             loc = (item.get("location") or {}).get("name", "")
             desc = html_to_text(item.get("content"))
