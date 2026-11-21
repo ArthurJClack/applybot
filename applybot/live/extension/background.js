@@ -64,8 +64,15 @@ setInterval(checkIn, 4000);
   const got = await api.storage.local.get("reloadTabs");
   if (!got.reloadTabs) return;
   await api.storage.local.set({ reloadTabs: false });
+  // Tidy up while we're at it: the same job open in more than one tab fights over the queue, so keep one.
   const tabs = await api.tabs.query({ url: JOB_TABS });
-  for (const t of tabs) api.tabs.reload(t.id);
+  const seen = new Map();
+  for (const t of tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))) {
+    const key = (t.url || "").replace(/[#].*$/, "").replace(/([?&])(validityToken|t|gh_src)=[^&]*/g, "$1");
+    if (seen.has(key)) { api.tabs.remove(t.id); continue; }
+    seen.set(key, t.id);
+    api.tabs.reload(t.id);
+  }
 })();
 
 // Company careers pages that embed Greenhouse (?gh_jid=123) load the form late or not at all. While ApplyBot has
