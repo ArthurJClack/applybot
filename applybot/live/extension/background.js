@@ -67,3 +67,20 @@ setInterval(checkIn, 4000);
   const tabs = await api.tabs.query({ url: JOB_TABS });
   for (const t of tabs) api.tabs.reload(t.id);
 })();
+
+// Company careers pages that embed Greenhouse (?gh_jid=123) load the form late or not at all. While ApplyBot has
+// a queue running, send those tabs to Greenhouse's own copy of the form instead.
+function greenhouseForm(url) {
+  const m = /[?&]gh_jid=(\d+)/.exec(url || "");
+  if (!m || /greenhouse\.io/.test(url)) return null;
+  return "https://boards.greenhouse.io/embed/job_app?token=" + m[1];
+}
+async function queueRunning() {
+  try { return ((await (await fetch((await base()) + "/live/ping")).json()).queued || 0) > 0; } catch (e) { return false; }
+}
+async function rescue(tabId, url) {
+  const to = greenhouseForm(url);
+  if (to && (await queueRunning())) api.tabs.update(tabId, { url: to });
+}
+api.tabs.onUpdated.addListener((tabId, info) => { if (info.url) rescue(tabId, info.url); });
+api.tabs.query({}).then((tabs) => tabs.forEach((t) => rescue(t.id, t.url)));
