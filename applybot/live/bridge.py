@@ -36,6 +36,10 @@ def form_url(url: str) -> str:
     m = re.search(r"[?&]gh_jid=(\d+)", url or "")
     if m and "greenhouse.io" not in url:
         return f"https://boards.greenhouse.io/embed/job_app?token={m.group(1)}"
+    # boards.greenhouse.io/<board>/jobs/<id> often redirects to the company's own careers site; the embed doesn't
+    m = re.match(r"https?://boards\.greenhouse\.io/(?!embed/)([^/?#]+)/jobs/(\d+)", url or "")
+    if m:
+        return f"https://boards.greenhouse.io/embed/job_app?for={m.group(1)}&token={m.group(2)}"
     return url
 
 

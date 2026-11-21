@@ -321,3 +321,5 @@ def test_company_pages_with_gh_jid_open_the_greenhouse_form():
         "https://boards.greenhouse.io/embed/job_app?token=6176786004"
     assert form_url("https://job-boards.greenhouse.io/x/jobs/1?gh_jid=1").startswith("https://job-boards")
     assert form_url("https://jobs.lever.co/a/b") == "https://jobs.lever.co/a/b"
+    assert form_url("https://boards.greenhouse.io/robinhood/jobs/8123225?t=gh_src=&gh_jid=8123225") == \
+        "https://boards.greenhouse.io/embed/job_app?for=robinhood&token=8123225"
