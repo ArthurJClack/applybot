@@ -86,6 +86,13 @@ def register(tool: Callable, context: Callable[[], tuple]) -> None:
         return {"auto_submit": b.auto_submit}
 
     @tool
+    def live_needs_you(job_id: str = "", reason: str = "") -> dict:
+        """The list of jobs waiting on the user (essay uploads, questions only they can answer), with links.
+        Pass job_id and reason to add one; jobs drop off by themselves once applied."""
+        up = _up()
+        return {"needs_you": up.add_needs_you(job_id, reason) if job_id else up.needs_you()}
+
+    @tool
     def live_reload_extension() -> dict:
         """Make the ApplyBot Live Firefox extension reload itself (to pick up new extension code after a git pull),
         then reload the job tabs it was running on. Takes up to ~5 seconds to be picked up."""

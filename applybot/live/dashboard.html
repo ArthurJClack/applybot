@@ -110,6 +110,10 @@
     background: rgba(116,143,252,.15); color: #c5d0ff; font: inherit; font-size: 12px; cursor: pointer;
     transition: background .2s, transform .15s; }
   .show:hover { background: rgba(116,143,252,.3); transform: translateY(-1px); }
+  .need-item { text-decoration: none; color: inherit; cursor: pointer; }
+  .need-item:hover { background: rgba(252,196,25,.08); }
+  .need-item .i { color: #fcc419; }
+  .need-item .why { font-size: 11.5px; color: #fcc419; opacity: .85; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -137,6 +141,7 @@
       <div class="now" id="now"><div class="empty-state"><b>Waiting for a form</b>Open a job from the queue and it shows up here.</div></div>
     </section>
     <div class="side">
+      <section class="card needs"><h2>Needs you <span class="count" id="needsCount"></span></h2><div class="list" id="needs"></div></section>
       <section class="card"><h2>Up next <span class="count" id="queueCount"></span></h2><div class="list" id="queue"></div></section>
       <section class="card"><h2>Activity</h2><div class="list" id="log"></div></section>
     </div>
@@ -236,6 +241,17 @@
       : '<div class="empty-state">Queue is empty.</div>';
   }
 
+  function renderNeeds(items) {
+    $("needsCount").textContent = items.length || "";
+    const sig = items.map((j) => j.id + j.reason).join("|");
+    if (sig === prev.needsSig) return;
+    prev.needsSig = sig;
+    $("needs").innerHTML = items.length ? items.map((j) => `<a class="q-item need-item" href="${esc(j.url)}" target="_blank" rel="noopener">
+        <span class="i">↗</span><div class="t"><div class="c">${esc(j.company)}</div><div class="r">${esc(j.title)}</div>
+        <div class="why">${esc(j.reason)}</div></div></a>`).join("")
+      : '<div class="empty-state">Nothing waiting on you 🎉</div>';
+  }
+
   function renderLog(lines) {
     const box = $("log");
     if (lines.length === prev.log) return;
@@ -261,7 +277,7 @@
       if (prev.today !== null && d.applied_today > prev.today) { confetti(); toast("Application submitted ✓"); }
       prev.today = d.applied_today;
       countTo($("today"), d.applied_today); countTo($("total"), d.applied_total); countTo($("queued"), d.queued);
-      renderNow(d.current); renderQueue(d.queue, d.queued); renderLog(d.log);
+      renderNow(d.current); renderQueue(d.queue, d.queued); renderLog(d.log); renderNeeds(d.needs_you || []);
     } catch (e) {
       $("conn").classList.remove("live");
       $("connText").textContent = "ApplyBot not running";

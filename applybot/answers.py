@@ -94,7 +94,7 @@ RULES: list[tuple[str, str]] = [
     ("sensitive.over_18", r"(18|eighteen) years|at least 18|over the age|legal age"),
     ("sensitive.criminal_conviction", r"convict|felony|criminal|misdemeanor"),
     ("sensitive.previously_employed_here", r"(previously|ever|formerly) (been )?(employed|worked)|former employee|worked (for|at) .* before|current employee of|^have you (ever )?worked (at|for)\b|current or former .{0,40}employee"),
-    ("sensitive.non_compete", r"non-?compete|restrictive covenant|non-?solicit"),
+    ("sensitive.non_compete", r"non-?compet(e|ition)|restrictive covenant|non-?solicit"),
     ("sensitive.background_check_ok", r"background check"),
     ("sensitive.drug_test_ok", r"drug (test|screen)"),
     ("first_name", r"^(legal )?first name|^given name|first name\b"),

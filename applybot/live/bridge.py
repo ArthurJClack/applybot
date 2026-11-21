@@ -363,7 +363,40 @@ class LiveBridge:
                 if f.get("kind") != "password"]}
         return {"connected": time.time() - self.last_seen < 20, "auto_submit": auto, "current": current,
                 "queue": [{"id": j, **jobs.get(j, {"company": "?", "title": j})} for j in queue[:25]],
-                "queued": len(queue), "log": log, "applied_today": applied_today, "applied_total": applied_total}
+                "queued": len(queue), "log": log, "applied_today": applied_today, "applied_total": applied_total,
+                "needs_you": self.needs_you()}
+
+    # ---- jobs waiting on you -------------------------------------------------------------------------------
+    def _needs_path(self, cfg) -> Path:
+        return cfg.path("apply", "output_dir") / "needs_you.json"
+
+    def needs_you(self) -> list[dict]:
+        """Jobs ApplyBot couldn't finish alone (an essay to upload, a question only you can answer), newest first."""
+        cfg, _, db = self._context()
+        try:
+            items = json.loads(self._needs_path(cfg).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            items = []
+        out = []
+        for it in items:
+            job = db.get_job(it["id"])
+            if job and job.get("status") != "applied":
+                out.append({**it, "company": job["company"], "title": job["title"],
+                            "url": form_url(job.get("apply_url") or job.get("url"))})
+        return out
+
+    def add_needs_you(self, job_id: str, reason: str) -> list[dict]:
+        cfg, _, _ = self._context()
+        path = self._needs_path(cfg)
+        try:
+            items = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            items = []
+        items = [i for i in items if i["id"] != job_id]
+        items.insert(0, {"id": job_id, "reason": reason, "when": time.strftime("%Y-%m-%d %H:%M")})
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(items, indent=1), encoding="utf-8")
+        return self.needs_you()
 
     def control(self, tab: str, data: dict) -> dict:
         action = data.get("action")
@@ -384,6 +417,10 @@ class LiveBridge:
             return {"reload": True}
         if action == "skip":
             page = self.current()
+            if page and page.get("job"):  # skipped = it needs you; keep it on your list
+                need = [f.get("label") for f in page["fields"] if f["key"] in set(page["unresolved"])]
+                self.add_needs_you(page["job"], data.get("reason") or ("still needs: " + "; ".join(need[:4]) if need
+                                                                     else "skipped - finish it by hand"))
             url = self.next_url()
             if page and url:
                 with self.lock:

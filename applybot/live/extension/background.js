@@ -33,7 +33,8 @@ api.runtime.onMessage.addListener((msg, sender) => {
   if (msg.type === "commands") {
     return call("/live/commands?tab=" + tab).then((r) => r.json()).catch(() => ({ commands: [], offline: true }));
   }
-  const paths = { page: "/live/page", state: "/live/state", submitted: "/live/submitted", confirmed: "/live/confirmed" };
+  const paths = { page: "/live/page", state: "/live/state", submitted: "/live/submitted", confirmed: "/live/confirmed",
+                  control: "/live/control" };
   if (paths[msg.type]) {
     return call(paths[msg.type], Object.assign({ tab }, msg.data))
       .then((r) => r.json()).catch((e) => ({ offline: true, error: String(e) }));

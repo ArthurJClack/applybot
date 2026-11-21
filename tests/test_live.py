@@ -339,3 +339,13 @@ def test_untailored_job_gets_the_standard_resume(live):
     docs = live.documents(cfg, job)
     assert docs["resume"].parent.name == "_standard" and docs["resume"].stat().st_size > 1000
     assert docs["resume"].read_bytes()[:4] == b"%PDF" and "cover_letter" not in docs
+
+
+def test_needs_you_list_tracks_skipped_jobs_until_applied(live):
+    jid = live.test["job"]["id"]
+    items = live.add_needs_you(jid, "upload a 750-word essay")
+    assert items[0]["id"] == jid and items[0]["url"] and "essay" in items[0]["reason"]
+    assert live.feed()["needs_you"][0]["id"] == jid
+    _, _, db = live._context()
+    db.conn.execute("UPDATE jobs SET status='applied' WHERE id=?", (jid,)); db.conn.commit()
+    assert live.needs_you() == []
