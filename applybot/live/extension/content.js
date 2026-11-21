@@ -477,9 +477,16 @@
     });
   }
 
+  // The real submit button: one that says "submit" beats a bare "Apply" (Greenhouse has an "Apply" jump link at the
+  // top of the page), and a type=submit button inside a form beats one outside it.
   function submitButton() {
+    const score = (b) => {
+      const t = (b.innerText || b.value || "").trim();
+      return (/submit/i.test(t) ? 4 : 0) + (b.type === "submit" ? 2 : 0) + (b.closest("form") ? 1 : 0);
+    };
     return [...document.querySelectorAll('button, input[type="submit"]')]
-      .find((b) => visible(b) && !b.disabled && SUBMIT_RE.test(b.innerText || b.value || ""));
+      .filter((b) => visible(b) && !b.disabled && SUBMIT_RE.test(b.innerText || b.value || ""))
+      .sort((a, b) => score(b) - score(a))[0];
   }
 
   function maybeAutoSubmit() {

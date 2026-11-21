@@ -323,3 +323,11 @@ def test_company_pages_with_gh_jid_open_the_greenhouse_form():
     assert form_url("https://jobs.lever.co/a/b") == "https://jobs.lever.co/a/b"
     assert form_url("https://boards.greenhouse.io/robinhood/jobs/8123225?t=gh_src=&gh_jid=8123225") == \
         "https://boards.greenhouse.io/embed/job_app?for=robinhood&token=8123225"
+
+
+def test_auto_submit_picks_submit_over_a_top_apply_button(live):
+    live.auto_submit = True
+    page = SIMPLE.replace("<form", '<button type="button" onclick="window.wrong=1">Apply</button><form')
+    poll = """async () => { for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 250));
+        await window.__applybotPoll(); if (/Thank you/.test(document.body.innerText)) return !window.wrong; } return false; }"""
+    assert _run_page(live, page, poll) is True
