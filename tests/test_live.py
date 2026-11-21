@@ -313,3 +313,11 @@ def test_auto_submit_when_site_clears_the_file_input_after_upload(live):
     poll = """async () => { for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 250));
         await window.__applybotPoll(); if (/Thank you/.test(document.body.innerText)) return true; } return false; }"""
     assert _run_page(live, gh, poll, files=True) is True
+
+
+def test_company_pages_with_gh_jid_open_the_greenhouse_form():
+    from applybot.live.bridge import form_url
+    assert form_url("https://stokespace.com/careers/current-openings?gh_jid=6176786004") == \
+        "https://boards.greenhouse.io/embed/job_app?token=6176786004"
+    assert form_url("https://job-boards.greenhouse.io/x/jobs/1?gh_jid=1").startswith("https://job-boards")
+    assert form_url("https://jobs.lever.co/a/b") == "https://jobs.lever.co/a/b"

@@ -30,6 +30,15 @@ def url_tokens(url: str) -> list[str]:
     return _ID_RE.findall(url or "")
 
 
+def form_url(url: str) -> str:
+    """Company career pages that embed Greenhouse (...?gh_jid=123) load the form late or not at all; Greenhouse's
+    own embed page for that job number is the same form, every time."""
+    m = re.search(r"[?&]gh_jid=(\d+)", url or "")
+    if m and "greenhouse.io" not in url:
+        return f"https://boards.greenhouse.io/embed/job_app?token={m.group(1)}"
+    return url
+
+
 def is_sensitive(category: str | None) -> bool:
     return bool(category) and (category == "consent" or category.startswith(SENSITIVE_PREFIXES))
 
@@ -231,11 +240,11 @@ class LiveBridge:
             job_id = self.queue.pop(0)
         _, _, db = self._context()
         job = db.get_job(job_id)
-        if not job:
+        if not job or job.get("status") == "applied":  # gone, or already sent from another tab
             return self.next_url()
         with self.lock:
             self.expected = job["id"]
-        return job.get("apply_url") or job.get("url")
+        return form_url(job.get("apply_url") or job.get("url"))
 
     def file_bytes(self, job_id: str, kind: str) -> tuple[bytes, str] | None:
         if kind not in FILE_KINDS:
