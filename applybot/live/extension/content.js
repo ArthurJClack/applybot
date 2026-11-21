@@ -266,11 +266,23 @@
     if (!f || f.kind !== "file") return false;
     const got = await send({ type: "file", path });
     if (!got || !got.ok) return false;
-    const file = new File([new Uint8Array(got.bytes)], got.name, { type: "application/pdf" });
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    f.els[0].files = dt.files;
-    fire(f.els[0], ["input", "change"]);
+    const el = f.els[0], type = /\.docx?$/i.test(got.name) ? "application/msword" : "application/pdf";
+    const W = window.wrappedJSObject;
+    if (W && typeof cloneInto === "function") {
+      // Firefox: a File made in the extension's own world is unreadable to the page's upload code, so build the
+      // File, the DataTransfer and the events in the page's world.
+      const bytes = cloneInto(new Uint8Array(got.bytes), window);
+      const file = new W.File(cloneInto([bytes], window), got.name, cloneInto({ type }, window));
+      const dt = new W.DataTransfer();
+      dt.items.add(file);
+      el.wrappedJSObject.files = dt.files;
+      for (const n of ["input", "change"]) el.wrappedJSObject.dispatchEvent(new W.Event(n, cloneInto({ bubbles: true }, window)));
+    } else {
+      const dt = new DataTransfer();
+      dt.items.add(new File([new Uint8Array(got.bytes)], got.name, { type }));
+      el.files = dt.files;
+      fire(el, ["input", "change"]);
+    }
     return true;
   }
 

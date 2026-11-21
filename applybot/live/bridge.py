@@ -133,7 +133,36 @@ class LiveBridge:
                 if hits:
                     out[kind] = hits[0]
                     break
+        if "resume" not in out:  # not tailored for this job: your standard resume, built from your profile
+            base = self.base_resume(cfg)
+            if base:
+                out["resume"] = base
         return out
+
+    def base_resume(self, cfg) -> Path | None:
+        """Your untailored resume as a PDF (rebuilt when profile.txt changes), for jobs nobody tailored one for."""
+        try:
+            from applybot.pipeline import slug
+            from applybot.profile import split_name
+            from applybot.render import render_pdf
+            from applybot.tailor import base_resume
+            _, profile, _ = self._context()
+            first, last = split_name(profile)
+            who = slug(f"{first}_{last}", 40) if first else "Candidate"
+            out = cfg.path("apply", "output_dir") / "_standard"
+            pdf = out / f"{who}_Resume.pdf"
+            try:
+                prof = cfg.path("profile", "path")
+            except (KeyError, TypeError):
+                prof = None
+            stale = not pdf.exists() or (prof is not None and prof.exists() and prof.stat().st_mtime > pdf.stat().st_mtime)
+            if stale:
+                out.mkdir(parents=True, exist_ok=True)
+                render_pdf(base_resume(profile), pdf)
+            return pdf
+        except Exception as e:  # never break filling over the fallback
+            self._note(f"couldn't build your standard resume: {e}")
+            return None
 
     # ---- extension-facing ----------------------------------------------------------------------------------
     def page(self, tab: str, data: dict) -> dict:

@@ -331,3 +331,11 @@ def test_auto_submit_picks_submit_over_a_top_apply_button(live):
     poll = """async () => { for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 250));
         await window.__applybotPoll(); if (/Thank you/.test(document.body.innerText)) return !window.wrong; } return false; }"""
     assert _run_page(live, page, poll) is True
+
+
+def test_untailored_job_gets_the_standard_resume(live):
+    cfg, _, db = live._context()
+    job = dict(db.get_job(live.test["job"]["id"]), id="untailored1")
+    docs = live.documents(cfg, job)
+    assert docs["resume"].parent.name == "_standard" and docs["resume"].stat().st_size > 1000
+    assert docs["resume"].read_bytes()[:4] == b"%PDF" and "cover_letter" not in docs
