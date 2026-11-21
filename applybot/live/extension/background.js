@@ -71,15 +71,17 @@ setInterval(checkIn, 4000);
   const got = await api.storage.local.get("reloadTabs");
   if (!got.reloadTabs) return;
   await api.storage.local.set({ reloadTabs: false });
-  // Tidy up while we're at it: the same job open in more than one tab fights over the queue, so keep one.
+  // Tidy up while we're at it: one tab works the queue; every other job tab just fights it for attention
+  // (the jobs that needed you are on the dashboard's "Needs you" list), so close them.
   const tabs = await api.tabs.query({ url: JOB_TABS });
-  const seen = new Map();
-  for (const t of tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))) {
-    const key = (t.url || "").replace(/[#].*$/, "").replace(/([?&])(validityToken|t|gh_src)=[^&]*/g, "$1");
-    if (seen.has(key)) { api.tabs.remove(t.id); continue; }
-    seen.set(key, t.id);
-    api.tabs.reload(t.id);
+  const { queueTab } = await api.storage.local.get("queueTab");
+  const sorted = tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  const keep = sorted.find((t) => t.id === queueTab) || sorted[0];
+  for (const t of sorted) {
+    if (keep && t.id === keep.id) api.tabs.reload(t.id);
+    else api.tabs.remove(t.id);
   }
+  if (keep) await api.storage.local.set({ queueTab: keep.id });
 })();
 
 // Company careers pages that embed Greenhouse (?gh_jid=123) load the form late or not at all. While ApplyBot has
