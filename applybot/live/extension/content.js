@@ -612,7 +612,8 @@
   let lastSig = "", stableSince = Date.now(), stuckSent = false;
   const pageStart = Date.now();
   function checkStuck() {
-    if (stuckSent || done || !isQueueTab()) return;
+    if (!queueTab) { send({ type: "isQueue" }).then((r) => { if (r && r.queue) queueTab = true; }).catch(() => {}); return; }
+    if (stuckSent || done) return;
     const sig = unresolved.join(",") + "|" + Object.keys(filled).length;
     if (sig !== lastSig) { lastSig = sig; stableSince = Date.now(); }
     const idle = Date.now() - stableSince;

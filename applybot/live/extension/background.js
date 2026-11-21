@@ -77,11 +77,11 @@ setInterval(checkIn, 4000);
   const { queueTab } = await api.storage.local.get("queueTab");
   const sorted = tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
   const keep = sorted.find((t) => t.id === queueTab) || sorted[0];
+  if (keep) await api.storage.local.set({ queueTab: keep.id });   // before the reload, so the page sees it
   for (const t of sorted) {
     if (keep && t.id === keep.id) api.tabs.reload(t.id);
     else api.tabs.remove(t.id);
   }
-  if (keep) await api.storage.local.set({ queueTab: keep.id });
 })();
 
 // Company careers pages that embed Greenhouse (?gh_jid=123) load the form late or not at all. While ApplyBot has
