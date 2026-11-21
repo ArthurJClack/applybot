@@ -557,7 +557,7 @@
 
   async function poll() {
     if (CONFIRM_RE.test(document.body ? document.body.innerText.slice(0, 6000) : "")) return confirmed();
-    if (!fields.size || offline) return;
+    if (offline || (!fields.size && !isQueueTab())) return;   // the queue's tab listens even with no form (to move on)
     const got = await send({ type: "commands" });
     for (const c of (got && got.commands) || []) {
       if (c.goto) { markQueueTab(); window.top.location.href = c.goto; return; }
@@ -599,6 +599,7 @@
   function isQueueTab() { try { return window.top.name === "applybot-queue"; } catch (e) { return false; } }
   const DEAD_RE = /no longer (accepting|available|open)|job (is )?not found|position has been filled|page (you.re looking for|not found)|404/i;
   let lastSig = "", stableSince = Date.now(), stuckSent = false;
+  const pageStart = Date.now();
   function checkStuck() {
     if (stuckSent || done || !isQueueTab()) return;
     const sig = unresolved.join(",") + "|" + Object.keys(filled).length;
@@ -608,6 +609,7 @@
       DEAD_RE.test(document.body ? document.body.innerText.slice(0, 3000) : ""));
     let reason = "";
     if (dead && idle > 8000) reason = "posting looks closed";
+    else if (!fields.size && Date.now() - pageStart > 25000) reason = "no application form on this page";
     else if (unresolved.length && idle > 90000) {
       const labels = unresolved.map((k) => (fields.get(k) || {}).label).filter(Boolean).slice(0, 4);
       reason = "needs: " + labels.join("; ");
