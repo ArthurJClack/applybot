@@ -161,11 +161,15 @@
     SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia",
     WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming" };
 
+  const DECLINE_RE = /decline|don.?t (wish|want)|do not (wish|want)|prefer not|rather not|choose not/i;
   function bestOption(options, value) {
     // "WA" in your answers, "Washington" in their list (or the other way round)
     const full = US_STATES[String(value || "").trim().toUpperCase()];
     if (full) return bestOption(options, full) || matchOption(options, value);
-    return matchOption(options, value);
+    // every form words "I'd rather not say" differently: your saved answer means the same thing
+    if (DECLINE_RE.test(value || "")) return options.find((o) => DECLINE_RE.test(o.text)) || matchOption(options, value);
+    // "Black/African American" vs "Black or African American"
+    return matchOption(options, value) || (/\//.test(value || "") ? matchOption(options, value.replace(/\s*\/\s*/g, " or ")) : null);
   }
 
   function matchOption(options, value) {
