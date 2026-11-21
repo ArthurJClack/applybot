@@ -25,6 +25,11 @@ api.runtime.onMessage.addListener((msg, sender) => {
       return { ok: true, bytes: Array.from(new Uint8Array(buf)), name: res.headers.get("X-Filename") || "document.pdf" };
     }).catch((e) => ({ ok: false, error: String(e) }));
   }
+  if (msg.type === "focus" && sender.tab) {   // "Show this page" on the dashboard
+    api.tabs.update(sender.tab.id, { active: true });
+    api.windows.update(sender.tab.windowId, { focused: true, drawAttention: true });
+    return Promise.resolve({ ok: true });
+  }
   if (msg.type === "commands") {
     return call("/live/commands?tab=" + tab).then((r) => r.json()).catch(() => ({ commands: [], offline: true }));
   }

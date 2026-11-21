@@ -291,6 +291,8 @@
       border: 1px solid rgba(255,255,255,.08); box-shadow: 0 18px 50px rgba(0,0,0,.45);
       animation: rise .45s cubic-bezier(.2,.9,.25,1.15) both; transition: transform .25s ease, opacity .25s ease; }
     .card.min { transform: translateY(calc(100% - 46px)); }
+    .card.top { bottom: auto; top: 18px; } .card.top.min { transform: translateY(calc(-100% + 46px)); }
+    .card.left { right: auto; left: 18px; }
     @keyframes rise { from { transform: translateY(24px) scale(.96); opacity: 0 } to { transform: none; opacity: 1 } }
     .head { display: flex; align-items: center; gap: 9px; padding: 12px 14px 10px; cursor: pointer; user-select: none; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #51cf66; flex: none; position: relative; }
@@ -342,6 +344,26 @@
     shadow.append(style, card);
     document.documentElement.appendChild(panel);
   }
+
+  // Never sit on top of the Submit button (or whatever the page has under the panel's corner).
+  const CORNERS = [[], ["top"], ["left"], ["top", "left"]];
+  function overlaps(a, b) { return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom; }
+  function dodge() {
+    if (!card || !card.isConnected) return;
+    const targets = [submitButton(), ...document.querySelectorAll('button[type="submit"], input[type="submit"]')]
+      .filter((b) => b && visible(b)).map((b) => b.getBoundingClientRect());
+    if (!targets.length) return;
+    for (const c of CORNERS) {
+      card.classList.toggle("top", c.includes("top"));
+      card.classList.toggle("left", c.includes("left"));
+      const r = card.getBoundingClientRect();
+      if (!targets.some((t) => overlaps(r, t))) return;
+    }
+    minimized = true; card.classList.add("min");  // nowhere free: shrink to the header bar
+  }
+  let dodgeTimer = null;
+  addEventListener("scroll", () => { clearTimeout(dodgeTimer); dodgeTimer = setTimeout(dodge, 120); }, { passive: true });
+  addEventListener("resize", () => { clearTimeout(dodgeTimer); dodgeTimer = setTimeout(dodge, 120); });
 
   function el(tag, cls, text) {
     const n = document.createElement(tag);
@@ -407,6 +429,7 @@
       body.append(btn);
     }
     lastNeed = needSig;
+    requestAnimationFrame(dodge);
   }
 
   // a quick green flash on each field as the bot fills it
@@ -497,6 +520,7 @@
     const got = await send({ type: "commands" });
     for (const c of (got && got.commands) || []) {
       if (c.goto) { window.top.location.href = c.goto; return; }
+      if (c.focus) { send({ type: "focus" }); continue; }
       if (await setValue(c.key, c.value)) { filled[c.key] = c.value; flash(c.key); }
     }
     await report();

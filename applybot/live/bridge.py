@@ -329,6 +329,13 @@ class LiveBridge:
             self.auto_submit = action == "resume"
             self._note("auto-submit " + ("on" if self.auto_submit else "paused"))
             return {"auto_submit": self.auto_submit}
+        if action == "focus":  # bring the tab ApplyBot is working in to the front
+            page = self.current()
+            if not page:
+                return {"ok": False}
+            with self.lock:
+                self.commands.setdefault(page["tab"], []).append({"focus": True})
+            return {"ok": True}
         if action == "reload_extension":
             self.ext_reload = True
             self._note("asked the extension to reload")

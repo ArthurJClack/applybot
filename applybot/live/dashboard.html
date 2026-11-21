@@ -106,6 +106,10 @@
     animation: fall 1.6s cubic-bezier(.25,.6,.4,1) forwards }
   @keyframes fall { to { transform: translateY(105vh) rotate(720deg); opacity: .2 } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important } }
+  .show { margin-top: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(116,143,252,.5);
+    background: rgba(116,143,252,.15); color: #c5d0ff; font: inherit; font-size: 12px; cursor: pointer;
+    transition: background .2s, transform .15s; }
+  .show:hover { background: rgba(116,143,252,.3); transform: translateY(-1px); }
 </style>
 </head>
 <body>
@@ -207,7 +211,8 @@
           <circle class="fg" cx="32" cy="32" r="${r}" style="stroke-dasharray:${len};stroke-dashoffset:${len * (1 - pct / 100)}"/></svg>
           <span>${pct}%</span></div>
         <div style="min-width:0"><div class="company">${esc(cur.job ? cur.job.company : "Unknown company")}</div>
-          <div class="role">${esc(cur.job ? cur.job.title : "")}</div><div class="url">${esc(cur.url)}</div></div></div>`;
+          <div class="role">${esc(cur.job ? cur.job.title : "")}</div><div class="url">${esc(cur.url)}</div>
+          <button class="show" onclick="showPage()">Show this page ↗</button></div></div>`;
     if (newJob) {
       box.innerHTML = head + `<div class="fields">${rows}</div>`;
       box.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 350, easing: "ease-out" });
@@ -262,6 +267,12 @@
       $("connText").textContent = "ApplyBot not running";
     }
   }
+
+  async function showPage() {
+    const r = await control("focus");
+    if (!r.ok) toast("Couldn't reach that tab - is Firefox still open?");
+  }
+  window.showPage = showPage;
 
   async function control(action) {
     const r = await fetch("/live/control", { method: "POST", headers: { "Content-Type": "application/json", "X-ApplyBot": "1" },
