@@ -617,10 +617,11 @@
     let reason = "";
     if (dead && idle > 8000) reason = "posting looks closed";
     else if (!fields.size && Date.now() - pageStart > 25000) reason = "no application form on this page";
-    else if (unresolved.length && idle > 90000) {
+    else if (unresolved.length && (idle > 90000 || Date.now() - pageStart > 240000)) {   // or 4 min on one form, period
       const labels = unresolved.map((k) => (fields.get(k) || {}).label).filter(Boolean).slice(0, 4);
       reason = "needs: " + labels.join("; ");
-    } else if (!unresolved.length && !countdown && submitButton() && idle > 120000) reason = "filled but didn't submit";
+    } else if (!unresolved.length && !countdown && submitButton() && (idle > 120000 || Date.now() - pageStart > 240000))
+      reason = "filled but didn't submit";
     if (!reason) return;
     stuckSent = true;
     draw("Stuck (" + reason + ") - saved to your list, moving on…", "warn");
