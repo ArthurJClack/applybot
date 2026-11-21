@@ -30,6 +30,12 @@ api.runtime.onMessage.addListener((msg, sender) => {
     api.windows.update(sender.tab.windowId, { focused: true, drawAttention: true });
     return Promise.resolve({ ok: true });
   }
+  if (msg.type === "markQueue" && sender.tab) {   // the tab that works through the queue
+    return api.storage.local.set({ queueTab: sender.tab.id }).then(() => ({ ok: true }));
+  }
+  if (msg.type === "isQueue" && sender.tab) {
+    return api.storage.local.get("queueTab").then((g) => ({ queue: g.queueTab === sender.tab.id }));
+  }
   if (msg.type === "commands") {
     return call("/live/commands?tab=" + tab).then((r) => r.json()).catch(() => ({ commands: [], offline: true }));
   }

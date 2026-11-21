@@ -595,8 +595,11 @@
 
   // ---- stuck? move on, and leave the job on your "Needs you" list --------------------------------------------
   // Only in the tab that is working through the queue (old tabs you kept open never skip themselves).
-  function markQueueTab() { try { window.top.name = "applybot-queue"; } catch (e) { /* cross-origin frame */ } }
-  function isQueueTab() { try { return window.top.name === "applybot-queue"; } catch (e) { return false; } }
+  // Firefox wipes window.name when the tab moves to another site, so the extension remembers which tab it is.
+  let queueTab = false;
+  function markQueueTab() { queueTab = true; send({ type: "markQueue" }); }
+  function isQueueTab() { return queueTab; }
+  send({ type: "isQueue" }).then((r) => { if (r && r.queue) queueTab = true; }).catch(() => {});
   const DEAD_RE = /no longer (accepting|available|open)|job (is )?not found|position has been filled|page (you.re looking for|not found)|404/i;
   let lastSig = "", stableSince = Date.now(), stuckSent = false;
   const pageStart = Date.now();
