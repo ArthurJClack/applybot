@@ -21,7 +21,10 @@ DEFAULT_PORT = 8765
 FILE_KINDS = {"resume": "resume", "cover_letter": "cover_letter"}
 _ID_RE = re.compile(r"(\d{6,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[A-F0-9]{10})")
 _ALLOWED_ORIGIN = re.compile(r"^((moz|chrome)-extension://|http://(127\.0\.0\.1|localhost):\d+$)")
-PROJECT_LINKS_RE = re.compile(r"project|portfolio|work samples?|other (links|urls?)|links? to (your )?(work|projects?)|github,? (project|portfolio)", re.I)
+# Questions that ask for LINKS (a portfolio, project URLs) - not essay questions that merely mention projects.
+PROJECT_LINKS_RE = re.compile(r"portfolio|work samples?|other (links|urls?|websites?)|links? to (your )?(work|projects?)|"
+                              r"project (links?|urls?)|github|(links?|urls?|website)\b.*\bprojects?|projects?\b.*\b(links?|urls?)", re.I)
+ESSAYISH_RE = re.compile(r"^(what|why|how|describe|tell|explain|share|please describe|briefly)\b|\?\s*$", re.I)
 DASHBOARD = Path(__file__).parent / "dashboard.html"
 
 
@@ -180,7 +183,9 @@ class LiveBridge:
         resolved = resolve_fields(fields, bank, profile, job or {}, None)
         links = self.project_links(bank, profile)
         for f in fields:
-            if links and f.kind in ("text", "textarea", "url") and PROJECT_LINKS_RE.search(f.question or ""):
+            q = f.question or ""
+            asks_links = PROJECT_LINKS_RE.search(q) and (not ESSAYISH_RE.search(q.strip()) or re.search(r"links?|urls?", q, re.I))
+            if links and f.kind in ("text", "textarea", "url") and asks_links:
                 one_line = f.kind != "textarea"
                 resolved[f.key].value = (", " if one_line else "\n").join(links)
                 resolved[f.key].source = "saved"
