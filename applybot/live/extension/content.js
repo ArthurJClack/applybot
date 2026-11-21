@@ -465,6 +465,8 @@
     filled = {};
     pendingFiles = (resp.fill || []).filter((i) => i.file)
       .map((i) => ({ label: (list.find((f) => f.key === i.key) || {}).label, file: i.file, tries: 0 }));
+    pendingVals = (resp.fill || []).filter((i) => !i.file && i.value)
+      .map((i) => ({ key: i.key, value: i.value, tries: 0 }));
     for (const item of resp.fill || []) {
       const cur = list.find((f) => f.key === item.key);
       if (cur && cur.value && !item.file) { filled[item.key] = cur.value; continue; }   // never overwrite what's there
@@ -551,11 +553,19 @@
 
   // Greenhouse re-renders its upload box once React wakes up, throwing away a file attached too early. If a file
   // we attached is still missing, attach it again to the fresh input (a few tries, a few seconds apart).
-  let pendingFiles = [], lastFileTry = 0;
+  let pendingFiles = [], pendingVals = [], lastFileTry = 0;
   async function retryFiles() {
-    if (!pendingFiles.length || Date.now() - lastFileTry < 4000) return;
+    if ((!pendingFiles.length && !pendingVals.length) || Date.now() - lastFileTry < 4000) return;
     lastFileTry = Date.now();
     const list = scan();
+    // dropdowns whose options load late (Greenhouse "State") sometimes don't take the first time: try again
+    for (const p of pendingVals) {
+      if (p.tries >= 3) continue;
+      const f = list.find((x) => x.key === p.key);
+      if (!f || f.value) continue;
+      p.tries += 1;
+      if (await setValue(p.key, p.value)) { filled[p.key] = p.value; flash(p.key); }
+    }
     for (const p of pendingFiles) {
       if (p.tries >= 4 || !p.label) continue;
       const f = list.find((x) => x.kind === "file" && x.label === p.label && !x.value);
