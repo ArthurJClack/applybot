@@ -11,6 +11,7 @@
   const CONFIRM_RE = /thank(s| you) for (applying|your (application|interest|submission))|application (has been |was )?(received|submitted)|we('ve| have) received your|successfully submitted|submission (received|successful)|your application is (complete|in)/i;
   const SUBMIT_RE = /^\s*(submit( your| my)?( application)?|send( application)?|complete( application)?|apply( now)?|finish)\s*$/i;
   const fields = new Map();   // key -> { kind, els: [elements], label }
+  let tried = {};
   let seq = 0, filled = {}, unresolved = [], job = null, lastState = "", offline = false, panel = null;
 
   const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
@@ -483,12 +484,15 @@
     offline = !resp || !!resp.offline;
     if (offline) { draw(); return; }
     job = resp.job;
-    filled = {};
-    pendingFiles = (resp.fill || []).filter((i) => i.file)
-      .map((i) => ({ label: (list.find((f) => f.key === i.key) || {}).label, file: i.file, tries: 0 }));
-    pendingVals = (resp.fill || []).filter((i) => !i.file && i.value)
-      .map((i) => ({ key: i.key, value: i.value, tries: 0 }));
-    for (const item of resp.fill || []) {
+    // run() fires again whenever the form grows (dropdowns opening, uploads swapping inputs). Only touch fields
+    // we haven't tried yet, or the page loops: fill -> new inputs -> run -> fill again...
+    const fresh = (resp.fill || []).filter((i) => !(i.key in tried));
+    for (const i of fresh) tried[i.key] = true;
+    pendingFiles = pendingFiles.concat(fresh.filter((i) => i.file)
+      .map((i) => ({ label: (list.find((f) => f.key === i.key) || {}).label, file: i.file, tries: 0 })));
+    pendingVals = pendingVals.concat(fresh.filter((i) => !i.file && i.value)
+      .map((i) => ({ key: i.key, value: i.value, tries: 0 })));
+    for (const item of fresh) {
       const cur = list.find((f) => f.key === item.key);
       if (cur && cur.value && !item.file) { filled[item.key] = cur.value; continue; }   // never overwrite what's there
       const ok = item.file ? await attach(item.key, item.file) : await setValue(item.key, item.value);
