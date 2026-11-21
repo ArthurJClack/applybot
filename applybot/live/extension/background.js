@@ -34,7 +34,14 @@ api.runtime.onMessage.addListener((msg, sender) => {
     return api.storage.local.set({ queueTab: sender.tab.id }).then(() => ({ ok: true }));
   }
   if (msg.type === "isQueue" && sender.tab) {
-    return api.storage.local.get("queueTab").then((g) => ({ queue: g.queueTab === sender.tab.id }));
+    // the queue's tab was closed (or never set): the next job page that asks becomes the queue's tab
+    return api.storage.local.get("queueTab").then(async (g) => {
+      if (g.queueTab === sender.tab.id) return { queue: true };
+      const alive = g.queueTab != null && await api.tabs.get(g.queueTab).then(() => true, () => false);
+      if (alive) return { queue: false };
+      await api.storage.local.set({ queueTab: sender.tab.id });
+      return { queue: true };
+    });
   }
   if (msg.type === "commands") {
     return call("/live/commands?tab=" + tab).then((r) => r.json()).catch(() => ({ commands: [], offline: true }));
