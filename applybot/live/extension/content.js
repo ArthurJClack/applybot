@@ -152,8 +152,25 @@
   }
 
   const norm = (s) => clean(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const US_STATES = { AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado",
+    CT: "Connecticut", DE: "Delaware", DC: "District of Columbia", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho",
+    IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
+    MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska",
+    NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina",
+    ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island",
+    SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia",
+    WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming" };
+
   function bestOption(options, value) {
+    // "WA" in your answers, "Washington" in their list (or the other way round)
+    const full = US_STATES[String(value || "").trim().toUpperCase()];
+    if (full) return bestOption(options, full) || matchOption(options, value);
+    return matchOption(options, value);
+  }
+
+  function matchOption(options, value) {
     const v = norm(value);
+    if (v.length <= 2) return options.find((o) => norm(o.text) === v);   // never let "WA" match "Hawaii"
     return options.find((o) => norm(o.text) === v) || options.find((o) => norm(o.text).startsWith(v))
       || options.find((o) => norm(o.text).includes(v) || (norm(o.text) && v.includes(norm(o.text))));
   }
