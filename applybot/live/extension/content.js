@@ -493,6 +493,7 @@
     await report();
     window.__applybotReady = true;
     autoSubmit = !!resp.auto_submit;
+    if (resp.queue_tab) markQueueTab();
     maybeAutoSubmit();
   }
 

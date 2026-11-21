@@ -213,7 +213,8 @@ class LiveBridge:
         self._note(f"form on {urlparse(url).netloc}: {len(fill)} to fill, {len(unresolved)} need an answer")
         auto = self.auto_submit if self.auto_submit is not None else bool((cfg.get("live") or {}).get("auto_submit"))
         return {"job": job and {"id": job["id"], "company": job["company"], "title": job["title"]},
-                "fill": fill, "unresolved": unresolved, "auto_submit": auto and bool(job)}
+                "fill": fill, "unresolved": unresolved, "auto_submit": auto and bool(job),
+                "queue_tab": bool(job) and job["id"] == self.expected}
 
     def state(self, tab: str, data: dict) -> dict:
         """The extension reports current field values (after filling or after you typed something)."""
@@ -310,9 +311,13 @@ class LiveBridge:
         return {"queued": len(self.queue), "opened": None}
 
     def current(self) -> dict | None:
-        """The form that reported most recently."""
+        """The form the queue is on (the job ApplyBot opened last), else the one that reported most recently.
+        Old tabs you kept open for later never take over from the queue."""
         with self.lock:
-            return max(self.pages.values(), key=lambda p: p.get("ts", 0)) if self.pages else None
+            if not self.pages:
+                return None
+            on_queue = [p for p in self.pages.values() if self.expected and p.get("job") == self.expected]
+            return max(on_queue or self.pages.values(), key=lambda p: p.get("ts", 0))
 
     def set_fields(self, values: dict[str, str], confirmed_by_user: bool = False, tab: str | None = None) -> dict:
         """Queue live edits by field label (or key). Sensitive fields need confirmed_by_user."""
