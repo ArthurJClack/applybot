@@ -451,6 +451,8 @@
     if (offline) { draw(); return; }
     job = resp.job;
     filled = {};
+    pendingFiles = (resp.fill || []).filter((i) => i.file)
+      .map((i) => ({ label: (list.find((f) => f.key === i.key) || {}).label, file: i.file, tries: 0 }));
     for (const item of resp.fill || []) {
       const cur = list.find((f) => f.key === item.key);
       if (cur && cur.value && !item.file) { filled[item.key] = cur.value; continue; }   // never overwrite what's there
@@ -530,8 +532,25 @@
       if (c.focus) { send({ type: "focus" }); continue; }
       if (await setValue(c.key, c.value)) { filled[c.key] = c.value; flash(c.key); }
     }
+    await retryFiles();
     await report();
     maybeAutoSubmit();
+  }
+
+  // Greenhouse re-renders its upload box once React wakes up, throwing away a file attached too early. If a file
+  // we attached is still missing, attach it again to the fresh input (a few tries, a few seconds apart).
+  let pendingFiles = [], lastFileTry = 0;
+  async function retryFiles() {
+    if (!pendingFiles.length || Date.now() - lastFileTry < 4000) return;
+    lastFileTry = Date.now();
+    const list = scan();
+    for (const p of pendingFiles) {
+      if (p.tries >= 4 || !p.label) continue;
+      const f = list.find((x) => x.kind === "file" && x.label === p.label && !x.value);
+      if (!f) continue;
+      p.tries += 1;
+      if (await attach(f.key, p.file)) { filled[f.key] = p.file; flash(f.key); }
+    }
   }
 
   let done = false;
