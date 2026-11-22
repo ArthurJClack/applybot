@@ -608,7 +608,7 @@
   function markQueueTab() { queueTab = true; send({ type: "markQueue" }); }
   function isQueueTab() { return queueTab; }
   send({ type: "isQueue" }).then((r) => { if (r && r.queue) queueTab = true; }).catch(() => {});
-  const DEAD_RE = /no longer (accepting|available|open)|job (is )?not found|position has been filled|page (you.re looking for|not found)|404/i;
+  const DEAD_RE = /no longer (accepting|available|open)|job (is )?not found|position has been filled|page (you.re looking for|not found)|\b404\b.{0,40}(not found|error)|(not found|error).{0,40}\b404\b/i;
   let lastSig = "", stableSince = Date.now(), stuckSent = false;
   const pageStart = Date.now();
   function checkStuck() {
@@ -617,10 +617,11 @@
     const sig = unresolved.join(",") + "|" + Object.keys(filled).length;
     if (sig !== lastSig) { lastSig = sig; stableSince = Date.now(); }
     const idle = Date.now() - stableSince;
-    const dead = /[?&]error=true/.test(location.href) || (!unresolved.length && !Object.keys(filled).length &&
+    // closed = the board says so, and there is no form on the page at all
+    const dead = /[?&]error=true/.test(location.href) || (!fields.size &&
       DEAD_RE.test(document.body ? document.body.innerText.slice(0, 3000) : ""));
     let reason = "";
-    if (dead && idle > 8000) reason = "posting looks closed";
+    if (dead && Date.now() - pageStart > 15000) reason = "posting looks closed";
     else if (!fields.size && Date.now() - pageStart > 25000) reason = "no application form on this page";
     else if (unresolved.length && (idle > 90000 || Date.now() - pageStart > 240000)) {   // or 4 min on one form, period
       const labels = unresolved.map((k) => (fields.get(k) || {}).label).filter(Boolean).slice(0, 4);
