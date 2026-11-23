@@ -225,14 +225,31 @@
         hit = bestOption(comboOptions(el), value);
       }
     }
-    if (!hit) {
-      if (el.value) typeInto(el, "");
-      el.blur();
-      return false;
-    }
+    if (!hit) return keyboardPick(el, value);
     hit.el.click();
     await sleep(150);
-    return true;
+    if (comboValue(el)) return true;
+    return keyboardPick(el, hit.text);   // the click didn't take (menus rendered far down the page / in a portal)
+  }
+
+  // Fallback the way a person would do it: type the answer, arrow onto the first match, press Enter.
+  async function keyboardPick(el, value) {
+    const key = (k, code) => el.dispatchEvent(new KeyboardEvent("keydown", { key: k, code: code || k, bubbles: true, cancelable: true }));
+    el.focus();
+    typeInto(el, String(value).slice(0, 40));
+    await sleep(500);
+    const opts = comboOptions(el);
+    const want = bestOption(opts, value);
+    if (opts.length && want) {                 // walk the highlight down to the option we want
+      const idx = Math.max(0, opts.findIndex((o) => o.el === want.el));
+      for (let i = 0; i < idx; i++) { key("ArrowDown"); await sleep(40); }   // typing already highlights the first match
+      key("Enter");
+      await sleep(250);
+    }
+    if (comboValue(el)) return true;
+    if (el.value) typeInto(el, "");
+    el.blur();
+    return false;
   }
 
   async function setValue(key, value) {
