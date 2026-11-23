@@ -117,3 +117,27 @@ async function rescue(tabId, url) {
 }
 api.tabs.onUpdated.addListener((tabId, info) => { if (info.url) rescue(tabId, info.url); });
 api.tabs.query({}).then((tabs) => tabs.forEach((t) => rescue(t.id, t.url)));
+
+// Watchdog: if the queue's tab wanders off to a page the extension can't work on (a company careers site, an
+// error page), nothing in that tab can move it on - so the background does: skip it and load the next job there.
+let offSince = 0;
+async function watchdog() {
+  try {
+    const { queueTab } = await api.storage.local.get("queueTab");
+    if (queueTab == null) return;
+    const tab = await api.tabs.get(queueTab).catch(() => null);
+    if (!tab || tab.status !== "complete") { offSince = 0; return; }
+    const onJobSite = JOB_TABS.some((p) => new RegExp("^" + p.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$").test(tab.url || ""));
+    if (onJobSite) { offSince = 0; return; }
+    if (!offSince) { offSince = Date.now(); return; }
+    if (Date.now() - offSince < 30000) return;
+    offSince = 0;
+    if (!(await queueRunning())) return;
+    const res = await fetch((await base()) + "/live/control", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-ApplyBot": "1" },
+      body: JSON.stringify({ action: "skip", reason: "the link left the application site" }) });
+    const j = await res.json();
+    if (j.next) api.tabs.update(queueTab, { url: j.next });
+  } catch (e) { /* bridge not running */ }
+}
+setInterval(watchdog, 5000);
