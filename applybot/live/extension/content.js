@@ -119,7 +119,13 @@
       }
       const key = keyFor(el);
       // an upload button is usually labelled "Attach"; the group around it says what the file is
-      const label = type === "file" ? clean([groupLabel(el), el.id, el.name].join(" ")) || labelFor(el) : labelFor(el);
+      // file inputs: the group's label, else the aria label (Workable: "Resume"), plus the id/name as hints
+      const fileLabel = () => {
+        const own = ownLabel(el);
+        const named = groupLabel(el) || (own && !/^choose file|drag and drop/i.test(own) ? own.replace(/\s*choose file.*$/i, "") : "");
+        return clean([named, el.id, el.name].join(" "));
+      };
+      const label = type === "file" ? fileLabel() || labelFor(el) : labelFor(el);
       let kind = type === "select" ? "select" : type === "textarea" ? "textarea" : type === "file" ? "file"
         : ["email", "tel", "url", "number", "date"].includes(type) ? type : "text";
       if (kind === "text" && (el.getAttribute("role") === "combobox" || el.getAttribute("aria-autocomplete"))) kind = "combobox";
