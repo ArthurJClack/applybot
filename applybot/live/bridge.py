@@ -218,7 +218,9 @@ class LiveBridge:
         self._note(f"form on {urlparse(url).netloc}: {len(fill)} to fill, {len(unresolved)} need an answer")
         auto = self.auto_submit if self.auto_submit is not None else bool((cfg.get("live") or {}).get("auto_submit"))
         return {"job": job and {"id": job["id"], "company": job["company"], "title": job["title"]},
-                "fill": fill, "unresolved": unresolved, "auto_submit": auto and bool(job),
+                "already_applied": bool(job) and job.get("status") == "applied",
+                "fill": fill, "unresolved": unresolved,
+                "auto_submit": auto and bool(job) and job.get("status") != "applied",   # never twice
                 "queue_tab": bool(job) and job["id"] == self.expected}
 
     def state(self, tab: str, data: dict) -> dict:

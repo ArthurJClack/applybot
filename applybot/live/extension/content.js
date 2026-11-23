@@ -517,8 +517,15 @@
     }
     await report();
     window.__applybotReady = true;
-    autoSubmit = !!resp.auto_submit;
+    const formKey = location.href.split("#")[0];
+    const sentHere = await send({ type: "wasSent", url: formKey }).catch(() => null);
+    autoSubmit = !!resp.auto_submit && !(sentHere && sentHere.sent) && !resp.already_applied;
     if (resp.queue_tab) markQueueTab();
+    if ((resp.already_applied || (sentHere && sentHere.sent)) && isQueueTab() && !stuckSent) {   // never apply twice
+      stuckSent = true;
+      draw("Already applied here - moving on…", "ok");
+      send({ type: "control", data: { action: "skip", reason: "already applied" } });
+    }
     maybeAutoSubmit();
   }
 
@@ -560,7 +567,8 @@
       if (countdownLeft <= 0) {
         clearInterval(countdown); countdown = null;
         draw("Submitting…");
-        btn.click();
+        send({ type: "markSent", url: location.href.split("#")[0] }).catch(() => {});
+      btn.click();
         return;
       }
       draw("Everything's filled.");

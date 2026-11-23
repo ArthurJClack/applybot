@@ -30,6 +30,16 @@ api.runtime.onMessage.addListener((msg, sender) => {
     api.windows.update(sender.tab.windowId, { focused: true, drawAttention: true });
     return Promise.resolve({ ok: true });
   }
+  if (msg.type === "markSent") {   // forms we've submitted, so a page that bounces back is never sent twice
+    return api.storage.local.get("sentForms").then((g) => {
+      const sent = g.sentForms || {};
+      sent[msg.url] = Date.now();
+      return api.storage.local.set({ sentForms: sent }).then(() => ({ ok: true }));
+    });
+  }
+  if (msg.type === "wasSent") {
+    return api.storage.local.get("sentForms").then((g) => ({ sent: !!(g.sentForms || {})[msg.url] }));
+  }
   if (msg.type === "markQueue" && sender.tab) {   // the tab that works through the queue
     return api.storage.local.set({ queueTab: sender.tab.id }).then(() => ({ ok: true }));
   }
