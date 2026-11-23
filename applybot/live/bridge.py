@@ -190,10 +190,17 @@ class LiveBridge:
                 resolved[f.key].value = (", " if one_line else "\n").join(links)
                 resolved[f.key].source = "saved"
         fill, unresolved = [], []
+        # Some boards (Workable) give the upload boxes no real label at all. If nothing on the form is recognisably
+        # the resume box, the first required upload is: that's where your resume goes.
+        has_resume_box = any(f.kind == "file" and resolved[f.key].category == "resume_file" for f in fields)
+        first_upload = next((f.key for f in fields if f.kind == "file" and f.required
+                             and resolved[f.key].category not in ("resume_file", "cover_letter")), None)
         for f in fields:
             r = resolved[f.key]
             if f.kind == "file":
                 kind = "cover_letter" if r.category == "cover_letter" else "resume" if r.category == "resume_file" else None
+                if not kind and not has_resume_box and f.key == first_upload:
+                    kind = "resume"
                 if kind and kind in docs and job:
                     fill.append({"key": f.key, "file": f"/live/file/{job['id']}/{kind}", "filename": docs[kind].name,
                                  "source": "document"})
