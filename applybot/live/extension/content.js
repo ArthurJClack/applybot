@@ -175,7 +175,9 @@
 
   function matchOption(options, value) {
     const v = norm(value);
-    if (v.length <= 2) return options.find((o) => norm(o.text) === v);   // never let "WA" match "Hawaii"
+    // short answers: exact, or the option that starts with it ("No" -> "No, I will not require sponsorship"),
+    // never a substring ("WA" must not match "Hawaii")
+    if (v.length <= 3) return options.find((o) => norm(o.text) === v) || options.find((o) => norm(o.text).startsWith(v + " "));
     return options.find((o) => norm(o.text) === v) || options.find((o) => norm(o.text).startsWith(v))
       || options.find((o) => norm(o.text).includes(v) || (norm(o.text) && v.includes(norm(o.text))));
   }
