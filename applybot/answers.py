@@ -469,6 +469,17 @@ class AnswerBank:
                     header.append(line)
                 else:
                     break
+        # Someone (you, or another ApplyBot process) may have edited the file since we loaded it: keep their
+        # additions instead of writing our stale copy over them.
+        if self.path.exists():
+            try:
+                disk = yaml.safe_load(self.path.read_text(encoding="utf-8")) or {}
+            except yaml.YAMLError:
+                disk = {}
+            for section in ("custom", "learned"):
+                merged = dict(disk.get(section) or {})
+                merged.update(self.data.get(section) or {})
+                self.data[section] = merged
         body = yaml.safe_dump(self.data, sort_keys=False, allow_unicode=True)
         text = ("\n".join(header).rstrip() + "\n" if header else "") + body
         self.path.write_text(text, encoding="utf-8")
