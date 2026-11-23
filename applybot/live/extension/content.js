@@ -254,6 +254,10 @@
     return false;
   }
 
+  const HEARD_RE = /how did you (hear|learn|find)|where did you (hear|learn|find)|how did you first (hear|learn)|referral source|source of (application|referral)/i;
+  const HEARD_ALTS = ["Simplify", "Online job board", "Job board", "Job Board / Website", "Company website", "Careers website",
+    "Careers page", "Website", "Internet search", "Google job search", "Google", "Other"];
+
   async function setValue(key, value) {
     const f = fields.get(key);
     if (!f || f.kind === "password" || f.kind === "file") return false;
@@ -286,7 +290,24 @@
       if (el.checked !== want) el.click();
       return true;
     }
-    if (f.kind === "combobox") return pickCombobox(el, value);
+    if (f.kind === "combobox") {
+      if (await pickCombobox(el, value)) return true;
+      // "How did you hear about us?" lists differ everywhere: fall back to the closest honest choice
+      if (HEARD_RE.test(f.label || "")) {
+        for (const alt of HEARD_ALTS) if (await pickCombobox(el, alt)) return true;
+      }
+      return false;
+    }
+    if ((f.kind === "select" || f.kind === "radio") && HEARD_RE.test(f.label || "")) {
+      for (const alt of [value, ...HEARD_ALTS]) {
+        const opts = f.kind === "select" ? [...el.options].map((o) => ({ el: o, text: o.text }))
+                                         : f.els.map((e) => ({ el: e, text: optionLabel(e) }));
+        const hit = bestOption(opts, alt);
+        if (!hit) continue;
+        if (f.kind === "select") { el.value = hit.el.value; fire(el, ["input", "change"]); } else hit.el.click();
+        return true;
+      }
+    }
     typeInto(el, value);
     fire(el, ["blur"]);
     return true;
