@@ -218,6 +218,20 @@ class LiveBridge:
                 fill.append({"key": f.key, "value": value, "source": r.source})
             elif f.required:
                 unresolved.append(f.key)
+        # Ashby renders one "select all that apply" question as several one-box checkbox groups with the same
+        # label. Ticking any one answers the question: count the group once, and as done when any box is ticked.
+        current = {f["key"]: f.get("value") for f in data.get("fields", [])}
+        groups: dict[str, list[str]] = {}
+        for f in fields:
+            if f.kind == "checkbox_group" and f.label:
+                groups.setdefault(f.label, []).append(f.key)
+        filled_keys = {x["key"] for x in fill}
+        for keys in groups.values():
+            if len(keys) < 2:
+                continue
+            done = any(current.get(k) or k in filled_keys for k in keys)
+            drop = set(keys) if done else set(keys[1:])
+            unresolved = [k for k in unresolved if k not in drop]
         with self.lock:
             self.last_seen = time.time()
             self.pages[tab] = {"tab": tab, "ts": time.time(), "url": url, "title": data.get("title", ""), "job": job and job["id"],
