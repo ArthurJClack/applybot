@@ -322,7 +322,10 @@
   // Greenhouse / Lever upload the file straight away and clear the <input>; the name then shows next to it.
   function uploadedName(el) {
     let box = el.parentElement;
-    for (let i = 0; box && i < 4; i++, box = box.parentElement) {
+    // Greenhouse's newer upload box puts the file chip a few levels up; stop before the box also holds another
+    // upload (so the cover letter's name never counts as the resume's).
+    for (let i = 0; box && i < 7; i++, box = box.parentElement) {
+      if (i > 0 && box.querySelectorAll('input[type="file"]').length > 1) break;
       const m = (box.innerText || "").match(/[^\s\/\\]+\.(pdf|docx?|rtf|txt|odt)\b/i);
       if (m) return m[0];
     }
