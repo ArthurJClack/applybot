@@ -682,7 +682,7 @@
     if (sig !== lastSig) { lastSig = sig; stableSince = Date.now(); }
     const idle = Date.now() - stableSince;
     // closed = the board says so, and there is no form on the page at all
-    const dead = /[?&]error=true/.test(location.href) || (!fields.size &&
+    const dead = /[?&](error=true|not_found=true)/.test(location.href) || (!fields.size &&
       DEAD_RE.test(document.body ? document.body.innerText.slice(0, 3000) : ""));
     let reason = "";
     if (dead && Date.now() - pageStart > 15000) reason = "posting looks closed";
@@ -692,6 +692,7 @@
       reason = "needs: " + labels.join("; ");
     } else if (!unresolved.length && !countdown && submitButton() && (idle > 120000 || Date.now() - pageStart > 240000))
       reason = "filled but didn't submit";
+    else if (Date.now() - pageStart > 300000) reason = "stuck on this page for 5 minutes";   // anything else: never sit forever
     if (!reason) return;
     stuckSent = true;
     draw("Stuck (" + reason + ") - saved to your list, moving on…", "warn");
