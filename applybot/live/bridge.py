@@ -330,8 +330,11 @@ class LiveBridge:
         with self.lock:
             if not self.pages:
                 return None
-            on_queue = [p for p in self.pages.values() if self.expected and p.get("job") == self.expected]
-            return max(on_queue or self.pages.values(), key=lambda p: p.get("ts", 0))
+            # A tab that stopped reporting (closed, or navigated off) must not keep taking skips/fills meant for
+            # the queue tab: only fall back to stale pages when nothing has reported in the last minute.
+            fresh = [p for p in self.pages.values() if time.time() - p.get("ts", 0) < 60] or list(self.pages.values())
+            on_queue = [p for p in fresh if self.expected and p.get("job") == self.expected]
+            return max(on_queue or fresh, key=lambda p: p.get("ts", 0))
 
     def set_fields(self, values: dict[str, str], confirmed_by_user: bool = False, tab: str | None = None) -> dict:
         """Queue live edits by field label (or key). Sensitive fields need confirmed_by_user."""
