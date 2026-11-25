@@ -99,10 +99,14 @@ class LiveBridge:
         row = db.conn.execute("SELECT id FROM jobs WHERE apply_url=? OR url=? LIMIT 1", (url, url)).fetchone()
         if not row:
             for tok in url_tokens(url):
-                rows = db.conn.execute("SELECT id FROM jobs WHERE apply_url LIKE ? OR url LIKE ? LIMIT 2",
+                rows = db.conn.execute("SELECT id FROM jobs WHERE apply_url LIKE ? OR url LIKE ? LIMIT 5",
                                        (f"%{tok}%", f"%{tok}%")).fetchall()
                 if len(rows) == 1:
                     row = rows[0]
+                    break
+                # the same posting found by two sources: the one the queue opened is the one this page is
+                if self.expected and any(r[0] == self.expected for r in rows):
+                    row = (self.expected,)
                     break
         if row:
             return db.get_job(row[0])
