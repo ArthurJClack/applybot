@@ -621,7 +621,14 @@
   }
 
   async function poll() {
-    if (CONFIRM_RE.test(document.body ? document.body.innerText.slice(0, 6000) : "")) return confirmed();
+    if (CONFIRM_RE.test(document.body ? document.body.innerText.slice(0, 6000) : "")) {
+      if (!done) return confirmed();
+      // already confirmed but still here (the move to the next job didn't happen): keep obeying "skip"
+      const got = await send({ type: "commands" });
+      const go = ((got && got.commands) || []).find((c) => c.goto);
+      if (go) { markQueueTab(); window.top.location.href = go.goto; }
+      return;
+    }
     if (offline || (!fields.size && !isQueueTab())) return;   // the queue's tab listens even with no form (to move on)
     const got = await send({ type: "commands" });
     for (const c of (got && got.commands) || []) {
