@@ -34,7 +34,7 @@ DEFAULTS: dict[str, Any] = {
         "locations": [],  # empty = anywhere
         "remote_ok": True,
         "max_age_days": 45,
-        "max_per_source": 500,
+        "max_per_source": 5000,
         "sources": {
             "simplify": {
                 "enabled": True,

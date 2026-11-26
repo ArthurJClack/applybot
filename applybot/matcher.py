@@ -109,7 +109,7 @@ def discover(cfg: dict, db: DB, log: Callable[[str], None] = print, only: list[s
                 continue
             kept = [j for j in jobs if passes_filters(j, search)[0]]
             kept.sort(key=lambda j: j.posted_at or "", reverse=True)  # newest first before capping
-            kept = kept[: int(search.get("max_per_source", 500))]
+            kept = kept[: int(search.get("max_per_source", 5000))]
             new = sum(db.upsert_job(j) for j in kept)
             stats["fetched"] += len(jobs)
             stats["kept"] += len(kept)
