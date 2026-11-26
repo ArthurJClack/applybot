@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from applybot.answers import SENSITIVE_PREFIXES, AnswerBank, Field, choose_option, classify, resolve_fields
+from applybot.answers import SENSITIVE_PREFIXES, AnswerBank, Field, ai_answers, choose_option, classify, resolve_fields
 
 DEFAULT_PORT = 8765
 FILE_KINDS = {"resume": "resume", "cover_letter": "cover_letter"}
@@ -171,6 +171,47 @@ class LiveBridge:
             self._note(f"couldn't build your standard resume: {e}")
             return None
 
+    # Required questions nothing else could answer ("why us?", "describe a project", "which team?") get an AI
+    # answer written only from your profile and the posting - never legal, demographic, consent or upload fields.
+    # Answers are cached per job + question, so a form that re-reports doesn't ask the AI again.
+    def _ai_fill(self, cfg, fields, resolved, profile, job, url) -> None:
+        if not hasattr(self, "_ai_cache"):
+            self._ai_cache: dict[tuple, str | None] = {}
+            self._llm = None
+        try:
+            from applybot.answers import Resolution
+            scope = (job or {}).get("id") or url.split("?")[0]
+            todo = []
+            for f in fields:
+                r = resolved[f.key]
+                cat = r.category or ""
+                if r.value is not None or not f.required or f.kind == "file" or cat == "consent" \
+                        or cat.startswith(SENSITIVE_PREFIXES):
+                    continue
+                hit = self._ai_cache.get((scope, f.question))
+                if hit:
+                    resolved[f.key] = Resolution(hit, "ai", r.category)
+                elif (scope, f.question) not in self._ai_cache:
+                    todo.append(f)
+            if not todo:
+                return
+            if self._llm is None:
+                from applybot.llm import LLM
+                self._llm = LLM(cfg["ai"])
+            for f in todo:
+                self._ai_cache[(scope, f.question)] = None   # asked once, even if the AI comes back empty
+            if not self._llm.available:
+                return
+            got = ai_answers(todo, profile, job or {}, self._llm)
+            for f in todo:
+                if got.get(f.key):
+                    self._ai_cache[(scope, f.question)] = got[f.key]
+                    resolved[f.key] = Resolution(got[f.key], "ai", resolved[f.key].category)
+            if got:
+                self._note(f"AI answered {len(got)} question(s) from your profile")
+        except Exception as e:   # filling never breaks over this
+            self._note(f"AI answers failed: {e}")
+
     # ---- extension-facing ----------------------------------------------------------------------------------
     def page(self, tab: str, data: dict) -> dict:
         """The extension saw a form: work out what to fill."""
@@ -185,6 +226,7 @@ class LiveBridge:
                         name=f.get("name", ""), placeholder=f.get("placeholder", ""))
                   for f in data.get("fields", []) if f.get("kind") != "password"]
         resolved = resolve_fields(fields, bank, profile, job or {}, None)
+        self._ai_fill(cfg, fields, resolved, profile, job, url)
         links = self.project_links(bank, profile)
         for f in fields:
             q = f.question or ""
