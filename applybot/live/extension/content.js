@@ -629,19 +629,26 @@
     return list;
   }
 
+  // Move the whole tab on. A form embedded in a company's page (an iframe) can't navigate the top window on its
+  // own in Firefox, so ask the extension to do it.
+  function goTo(url) {
+    if (window === window.top) { location.href = url; return; }
+    send({ type: "navigate", url }).then((r) => { if (!r || !r.ok) { try { window.top.location.href = url; } catch (e) { location.href = url; } } });
+  }
+
   async function poll() {
     if (CONFIRM_RE.test(document.body ? document.body.innerText.slice(0, 6000) : "")) {
       if (!done) return confirmed();
       // already confirmed but still here (the move to the next job didn't happen): keep obeying "skip"
       const got = await send({ type: "commands" });
       const go = ((got && got.commands) || []).find((c) => c.goto);
-      if (go) { markQueueTab(); window.top.location.href = go.goto; }
+      if (go) { markQueueTab(); goTo(go.goto); }
       return;
     }
     if (offline || (!fields.size && !isQueueTab())) return;   // the queue's tab listens even with no form (to move on)
     const got = await send({ type: "commands" });
     for (const c of (got && got.commands) || []) {
-      if (c.goto) { markQueueTab(); window.top.location.href = c.goto; return; }
+      if (c.goto) { markQueueTab(); goTo(c.goto); return; }
       if (c.focus) { send({ type: "focus" }); continue; }
       if (await setValue(c.key, c.value)) { filled[c.key] = c.value; flash(c.key); }
     }
@@ -716,7 +723,7 @@
     const got = await send({ type: "confirmed", data: { url: location.href } });
     if (got && got.next) {
       draw("Applied - opening the next job…", "ok");
-      setTimeout(() => { markQueueTab(); window.top.location.href = got.next; }, 1200);
+      setTimeout(() => { markQueueTab(); goTo(got.next); }, 1200);
     } else if (got && !got.offline) {
       draw(got.applied ? "Applied - that was the last one in the queue." : "Applied", "ok");
     }
