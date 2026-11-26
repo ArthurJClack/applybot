@@ -173,6 +173,12 @@
     // "WA" in your answers, "Washington" in their list (or the other way round)
     const full = US_STATES[String(value || "").trim().toUpperCase()];
     if (full) return bestOption(options, full) || matchOption(options, value);
+    // your school: only ever a University of Washington entry (Tacoma campus if listed, else plain UW) - never
+    // Western/Eastern/Central Washington or another UW campus
+    if (/^university of washington/.test(norm(value))) {
+      const uw = options.filter((o) => /^university of washington/.test(norm(o.text)) && !/bothell|seattle campus/.test(norm(o.text)));
+      return uw.find((o) => /tacoma/.test(norm(o.text))) || uw.find((o) => norm(o.text) === "university of washington") || null;
+    }
     // every form words "I'd rather not say" differently: your saved answer means the same thing
     if (DECLINE_RE.test(value || "")) return options.find((o) => DECLINE_RE.test(o.text)) || matchOption(options, value);
     // "Black/African American" vs "Black or African American"

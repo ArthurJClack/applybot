@@ -196,6 +196,9 @@ def choose_option(value: str, options: list[str]) -> str | None:
     v = qnorm(str(value))
     if not v:
         return None
+    if v.startswith("university of washington"):   # your school: a UW entry only (Tacoma, else plain UW), never another school
+        uw = [o for o in opts if qnorm(o).startswith("university of washington") and "bothell" not in qnorm(o)]
+        return next((o for o in uw if "tacoma" in qnorm(o)), None) or next((o for o in uw if qnorm(o) == "university of washington"), None)
     for o in opts:
         if qnorm(o) == v:
             return o
