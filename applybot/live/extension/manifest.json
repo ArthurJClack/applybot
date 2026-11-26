@@ -10,7 +10,7 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.greenhouse.io/*", "*://jobs.lever.co/*", "*://jobs.ashbyhq.com/*", "*://apply.workable.com/*",
+        "*://*.greenhouse.io/*", "*://jobs.lever.co/*", "*://jobs.eu.lever.co/*", "*://jobs.ashbyhq.com/*", "*://apply.workable.com/*",
         "*://*.myworkdayjobs.com/*", "*://*.icims.com/*", "*://jobs.smartrecruiters.com/*",
         "*://*.applytojob.com/*", "*://ats.rippling.com/*", "*://*.taleo.net/*", "*://*.oraclecloud.com/*",
         "*://apply.careers.microsoft.com/*", "*://*.amazon.jobs/*", "*://amazon.jobs/*",
