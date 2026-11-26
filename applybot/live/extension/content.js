@@ -176,8 +176,17 @@
     // every form words "I'd rather not say" differently: your saved answer means the same thing
     if (DECLINE_RE.test(value || "")) return options.find((o) => DECLINE_RE.test(o.text)) || matchOption(options, value);
     // "Black/African American" vs "Black or African American"
-    return matchOption(options, value) || (/\//.test(value || "") ? matchOption(options, value.replace(/\s*\/\s*/g, " or ")) : null);
+    let hit = matchOption(options, value) || (/\//.test(value || "") ? matchOption(options, value.replace(/\s*\/\s*/g, " or ")) : null);
+    // never flip a negative answer into a positive one ("I am not a veteran" must not land on "Yes, I am a veteran")
+    const neg = NEG_RE.test(value || "");
+    if (hit && neg !== NEG_RE.test(hit.text) && !/^(yes|no)$/i.test(String(value).trim())) hit = null;
+    if (!hit && neg) {
+      const words = norm(value).split(" ").filter((w) => w.length > 4 && !NEG_RE.test(w));
+      hit = options.find((o) => NEG_RE.test(o.text) && !DECLINE_RE.test(o.text) && words.some((w) => norm(o.text).includes(w))) || null;
+    }
+    return hit;
   }
+  const NEG_RE = /\b(not|no|don'?t|do not|never|none)\b/i;
 
   function matchOption(options, value) {
     const v = norm(value);
